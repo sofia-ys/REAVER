@@ -40,35 +40,7 @@ r_Earth = 6378.137  # [km]
 def orbit_v(r):
     return np.sqrt(mu_Earth/r)
 
-def cosTheta(i_1, i_2, RAAN_1, RAAN_2):
-    cos_theta = np.cos(i_1) * np.cos(i_2) + np.sin(i_1) * np.sin(i_2) * np.cos(RAAN_2 - RAAN_1)
-    return np.acos(cos_theta)
-
-def transfer_v(r_1, r_2):
-    vt1 = np.sqrt(mu_Earth * (2/r_1 - 2/(r_1 + r_2)))
-    vt2 = np.sqrt(mu_Earth * (2/r_2 - 2/(r_1 + r_2)))
-    return vt1, vt2
-
 from scipy.optimize import fsolve
-
-
-def Theta1(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2):
-    v1 = orbit_v(r_1)
-    v2 = orbit_v(r_2)
-    vt1, vt2 = transfer_v(r_1, r_2)
-    theta = cosTheta(i_1, i_2, RAAN_1, RAAN_2)
-
-    def f(theta1):
-        return (
-            v1 * vt1 * np.sin(theta1)
-            / np.sqrt(v1**2 + vt1**2 - 2*v1*vt1*np.cos(theta1))
-            -
-            v2 * vt2 * np.sin(theta - theta1)
-            / np.sqrt(v2**2 + vt2**2 - 2*v2*vt2*np.cos(theta - theta1))
-        )
-
-    theta1 = fsolve(f, theta/2)[0]
-    return theta1
 
 def deltaV(orbit1, orbit2):
     r_1 = orbit1[0]
@@ -80,9 +52,24 @@ def deltaV(orbit1, orbit2):
 
     v1 = orbit_v(r_1)
     v2 = orbit_v(r_2)
-    vt1, vt2 = transfer_v(r_1, r_2)
-    theta = cosTheta(i_1, i_2, RAAN_1, RAAN_2)
-    theta1 = Theta1(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
+    vt1 = np.sqrt(mu_Earth * (2/r_1 - 2/(r_1 + r_2)))
+    vt2 = np.sqrt(mu_Earth * (2/r_2 - 2/(r_1 + r_2)))
+
+    cos_theta = np.cos(i_1) * np.cos(i_2) + np.sin(i_1) * np.sin(i_2) * np.cos(RAAN_2 - RAAN_1) 
+    cos_theta = np.clip(cos_theta, -1.0, 1.0)  # jusssst in case we get bad answer
+    theta = np.acos(cos_theta)
+
+    # numerically solving for theta1 with scipy thing
+    def f(theta1):
+        return (
+            v1 * vt1 * np.sin(theta1)
+            / np.sqrt(v1**2 + vt1**2 - 2*v1*vt1*np.cos(theta1))
+            -
+            v2 * vt2 * np.sin(theta - theta1)
+            / np.sqrt(v2**2 + vt2**2 - 2*v2*vt2*np.cos(theta - theta1))
+        )
+
+    theta1 = fsolve(f, theta/2)[0]
 
     dV1 = np.sqrt(v1**2 + vt1**2 - 2*v1*vt1*np.cos(theta1))
     dV2 = np.sqrt(v2**2 + vt2**2 - 2*v2*vt2*np.cos(theta - theta1))
