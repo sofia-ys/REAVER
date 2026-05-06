@@ -1,69 +1,79 @@
-% inputs for each orbit: altitude (assuming circular orbit), inclination,
-% RAAN
+% HOW TO USE:
+% tldr; DO NOT TOUCH THIS
+% why? this is a class file, in matlab you can ONLY define the class here (to
+% run it you need a different script)
 
-% r_1 = 35786;  % GEO [km]
+% IN A SEPARATE FILE
+% 1)    create an instance of the class
+%       dvCalc = deltaV();
 
-% orbit1 = (r_1, i_1, RAAN_1);
-% orbit2 = (r_2, i_2, RAAN_2);
+% 2)    define the input parameters you need
+%       r_1 = 7000;
+%       r_2 = 42164;
+%       i_1 = deg2rad(28.5);
+%       i_2 = deg2rad(0);
+%       RAAN_1 = deg2rad(0);
+%       RAAN_2 = deg2rad(20);
 
-% function V = deltaV(orbit1, orbit2)
+% 3)    run the function you want
+%       dV_total = dvCalc.delV(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
 
-% 
-% classdef deltaV
-%     properties
-%         mu_Earth = 398600.4415;  % [km^2 / s^2]
-%         r_Earth = 6378.137;  % [km]
-%     end
-%     methods
-%         function V = velocity(r)
-%             V = sqrt(obj.mu_Earth / r);
-%         end
-%         function cos_theta = cosTheta(i_1, i_2, RAAN_1, RAAN_2)
-%             cos_theta = cos(i_1) * cos(i_2) + sin(i_1) * sin(i_2) * cos(RAAN_2 - RAAN_1);
-%         end
-% 
-% 
-%         function dV = transferV(r_1, r_2)
-%             vt1 = sqrt(obj.mu_Earth * (2/r_1 - 2/(r_1 + r_2) ))
-%             vt2 = sqrt(obj.mu_Earth * (2/r_2 - 2/(r_1 + r_2) ))
-%         end
-%     end
-% end
+classdef deltaV
+    properties
+        mu_Earth = 398600.4415;  % [km^2 / s^2]
+        r_Earth = 6378.137;  % [km]
+    end
+    methods        
+        % orbital velocity at a given radius
+        function V = velocity(obj, r)
+            V = sqrt(obj.mu_Earth / r);
+        end
+        
+        % cos(theta) value from the inclination and RAAN changes
+        function theta = cosTheta(obj, i_1, i_2, RAAN_1, RAAN_2)
+            cos_theta = cos(i_1) * cos(i_2) + sin(i_1) * sin(i_2) * cos(RAAN_2 - RAAN_1);
+            theta = acos(cos_theta);
+        end
 
+        % transfer orbit delta-v stuff
+        function [vt1, vt2] = transferV(obj, r_1, r_2)
+            vt1 = sqrt(obj.mu_Earth * (2/r_1 - 2/(r_1 + r_2)));
+            vt2 = sqrt(obj.mu_Earth * (2/r_2 - 2/(r_1 + r_2)));
+        end
 
-mu_Earth = 398600.4415;  % [km^2 / s^2]
-r_Earth = 6378.137;  % [km]
+        % find the theta_1 value for the delta v calc
+        function theta1 = findTheta1(obj, r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
+            v1 = obj.velocity(r_1);
+            v2 = obj.velocity(r_2);
 
-% input parameters
-h_1 = 35700;
-h_2 = 36500;
-r_1 = h_1 + r_Earth;  % [km]
-r_2 = h_2 + r_Earth;
-i_1 = 20 * pi/180;  % [rad]
-i_2 = 20 * pi/180;
-RAAN_1 = 0 * pi/180;
-RAAN_2 = 180 * pi/180;  % [rad]
+            [vt1, vt2] = obj.transferV(r_1, r_2);
 
-cos_theta = cos(i_1) * cos(i_2) + sin(i_1) * sin(i_2) * cos(RAAN_2 - RAAN_1);
-theta = acos(cos_theta);
+            theta = obj.cosTheta(i_1, i_2, RAAN_1, RAAN_2);
 
-v1 = sqrt(mu_Earth / r_1);
-v2 = sqrt(mu_Earth / r_2);
+            f = @(theta1) ...
+                v1 * vt1 * sin(theta1) ./ sqrt(v1^2 + vt1^2 - 2*v1*vt1*cos(theta1)) ...
+                - ...
+                v2 * vt2 * sin(theta - theta1) ./ sqrt(v2^2 + vt2^2 - 2*v2*vt2*cos(theta - theta1));
 
-vt1 = sqrt(mu_Earth * (2/r_1 - 2/(r_1 + r_2) ));
-vt2 = sqrt(mu_Earth * (2/r_2 - 2/(r_1 + r_2) ));
+            theta1 = fzero(f, theta/2);
+        end
 
-% syms theta1
-% 
-% eqn = v1 * vt1 * sin(theta1)/(sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1))) == v2 * vt2 * sin(theta - theta1)/(sqrt(v2^2 + vt2^2 - 2 * v2 *vt2 * cos(theta - theta1)));
-% solution = solve(eqn, theta1)
+        % calculate final delta v 
+        function dV = delV(obj, r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
+            v1 = obj.velocity(r_1);
+            v2 = obj.velocity(r_2);
+            [vt1, vt2] = obj.transferV(r_1, r_2);
 
-% numerical solver (without syms package)
-f = @(theta1) ...
-    v1 * vt1 * sin(theta1) ./ sqrt(v1^2 + vt1^2 - 2*v1*vt1*cos(theta1)) ...
-    - ...
-    v2 * vt2 * sin(theta - theta1) ./ sqrt(v2^2 + vt2^2 - 2*v2*vt2*cos(theta - theta1));
+            theta = obj.cosTheta(i_1, i_2, RAAN_1, RAAN_2);
+            theta1 = obj.findTheta1(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2);
 
-theta1_solution = fzero(f, theta/2);
+            dV1 = sqrt(v1^2 + vt1^2 - 2*v1*vt1*cos(theta1));
+            dV2 = sqrt(v2^2 + vt2^2 - 2*v2*vt2*cos(theta - theta1));
+            dV = dV1 + dV2;
+        end
+    end
+end
 
-dV = sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1_solution)) + sqrt(v2^2 + vt2^2 - 2 * v2 *vt2 * cos(theta - theta1_solution))
+% VERIFICATION:
+% tested with pure altitude change hohmann transfer 
+% tested with pure inclination change 
