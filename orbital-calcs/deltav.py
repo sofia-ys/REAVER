@@ -106,6 +106,7 @@ orbits = [rh_orbit, d1_orbit, d2_orbit, d3_orbit, d4_orbit, d5_orbit]  # list of
 n_targets = 5  # CHANGE THIS IF ADDING MORE DEBRIS
 debris_list = list(itertools.permutations(range(1, n_targets + 1)))  # all permutations of visiting debris 
 
+'''GOING RH --> ALL DEBRIS --> RH'''
 # all the orbital data in all the possible perms
 orbits_list = []
 for debris_perm in debris_list:
@@ -128,6 +129,23 @@ for dv_path in deltav_list:
     tot_dv.append(sum(dv_path))
 
 # RUN HERE
+print("------------------RH -> ALL DEBRIS -> RH-----------------")
 optimal_path = tot_dv.index(min(tot_dv))  # order of the debris visiting that is best
 print(debris_list[optimal_path], tot_dv[optimal_path])  # printing that and also how much total delta v it is to visit all debris and go back and forth from rh
 print(deltav_list[optimal_path])  # dv of each manuevre taking the optimal path
+
+
+'''GOING RH --> DEBRIS --> RH AND REPEAT'''
+orbits_list = [orbits[0]]
+for i in range(1, len(orbits)):
+    orbits_list.append(orbits[i])  # go to debris
+    orbits_list.append(orbits[0])  # return to RH
+
+dv_tot = []
+for i in range(len(orbits_list) - 1):
+    dv_tot.append(float(deltaV(orbits_list[i], orbits_list[i+1])))  # dv for each manuevre taking this certain path
+
+# RUN HERE
+print("------------------RH -> 1 DEBRIS -> RH -> 1 DEBRIS -> RH-----------------")
+print("total dv: ", sum(dv_tot))  # printing that and also how much total delta v it is to visit all debris and go back and forth from rh
+print(dv_tot)  # dv of each manuevre taking the optimal path
