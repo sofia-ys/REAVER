@@ -15,8 +15,7 @@
 %       RAAN_1 = deg2rad(0);
 %       RAAN_2 = deg2rad(20);
 
-% 3)    run the function you want
-%       dV_total = dvCalc.delV(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
+dV_total = dvCalc.delV(r_1, r_2, i_1, i_2, RAAN_1, RAAN_2)
 
 classdef deltaV
     properties
@@ -54,6 +53,7 @@ classdef deltaV
                 v1 * vt1 * sin(theta1) ./ sqrt(v1^2 + vt1^2 - 2*v1*vt1*cos(theta1)) ...
                 - ...
                 v2 * vt2 * sin(theta - theta1) ./ sqrt(v2^2 + vt2^2 - 2*v2*vt2*cos(theta - theta1));
+
             theta1 = fzero(f, theta/2);
         end
 
@@ -72,7 +72,3 @@ classdef deltaV
         end
     end
 end
-
-% VERIFICATION:
-% tested with pure altitude change hohmann transfer 
-% tested with pure inclination change 
