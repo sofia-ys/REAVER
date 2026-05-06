@@ -10,12 +10,12 @@ inputs: initial and final radius and inclination
 '''
 
 class DeltaV:
-    def _innit_(self, r_initial, r_final, i_initial, i_final):
+    def __init__(self, r_initial, r_final, i_initial, i_final):
         # Earth parameters
-        mu_Earth = 398600.4415  # [km^2 / s^2]
-        r_Earth = 6378.137  # [km]
-        self.v_initial = np.sqrt(mu_Earth/r_initial)
-        self.v_final = np.sqrt(mu_Earth/r_final)
+        self.mu_Earth = 398600.4415  # [km^2 / s^2]
+        self.r_Earth = 6378.137  # [km]
+        self.v_initial = np.sqrt(self.mu_Earth/r_initial)
+        self.v_final = np.sqrt(self.mu_Earth/r_final)
         self.delta_i = i_final - i_initial
     
     # inclination and altitude change
