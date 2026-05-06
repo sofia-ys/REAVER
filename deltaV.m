@@ -53,9 +53,17 @@ v2 = sqrt(mu_Earth / r_2);
 vt1 = sqrt(mu_Earth * (2/r_1 - 2/(r_1 + r_2) ));
 vt2 = sqrt(mu_Earth * (2/r_2 - 2/(r_1 + r_2) ));
 
-syms theta1
+% syms theta1
+% 
+% eqn = v1 * vt1 * sin(theta1)/(sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1))) == v2 * vt2 * sin(theta - theta1)/(sqrt(v2^2 + vt2^2 - 2 * v2 *vt2 * cos(theta - theta1)));
+% solution = solve(eqn, theta1)
 
-eqn = v1 * vt1 * sin(theta1)/(sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1))) == v2 * vt2 * sin(theta - theta1)/(sqrt(v2^2 + vt2^2 - 2 * v2 *vt2 * cos(theta - theta1)));
-solution = solve(eqn, theta1)
+% numerical solver (without syms package)
+f = @(theta1) ...
+    v1 * vt1 * sin(theta1) ./ sqrt(v1^2 + vt1^2 - 2*v1*vt1*cos(theta1)) ...
+    - ...
+    v2 * vt2 * sin(theta - theta1) ./ sqrt(v2^2 + vt2^2 - 2*v2*vt2*cos(theta - theta1));
 
-% deltaV = (sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1))
+theta1_solution = fzero(f, theta/2);
+
+dV = sqrt(v1^2 + vt1^2 - 2 * v1 *vt1 * cos(theta1_solution)) + sqrt(v2^2 + vt2^2 - 2 * v2 *vt2 * cos(theta - theta1_solution))
