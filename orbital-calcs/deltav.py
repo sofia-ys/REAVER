@@ -1,5 +1,14 @@
 import numpy as np
 
+'''HOW TO USE:
+inputs: initial and final radius and inclination
+1)  create an instance of the class:
+    deltaV = DeltaV(r_initial, r_final, i_initial, i_final)
+2)  run the combined deltav manouevre function (does altitude and inclinatino change)
+    delta_v = deltaV.combined()
+3)  yay you now have a maybe wrong value for delta v 
+'''
+
 class DeltaV:
     def _innit_(self, r_initial, r_final, i_initial, i_final):
         # Earth parameters
