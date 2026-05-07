@@ -2,15 +2,15 @@ import numpy as np
 
 '''HOW TO USE:
 this tool calculates how much propellant mass is needed for a capture sequence before coming back to the RH
-1)  adjust the debris mass -- currently it uses one constant debris mass (so if you capture 5 debris they're all 2000kg) around line 9
+1)  adjust the debris mass -- currently it uses one constant debris mass (so if you capture 5 debris they're all 2000kg) around line 19
     m_debris = 2000
-2)  adjust the Isp for your type of propulsion
+2)  adjust the Isp for your type of propulsion around line 20
     Isp = 220
-3)  adjust the dry mass of your spacecraft that is travelling 
+3)  adjust the dry mass of your spacecraft that is travelling  around line 21
     m_dry = 1440
-4)  set the number of targets you are capturing IN A ROW (between 1 and 5)
+4)  set the number of targets you are capturing IN A ROW (between 1 and 5) around line 47
     n_targets = 1
-5)  copy and paste the list of dv manouevres from the dv tool!
+5)  copy and paste the list of dv manouevres from the dv tool! around line 48
     dv_list = [0.5196472774421069, 0.5196472774421069]
 now you have the propellant mass required for your set of dv manouevres! this is iterative so it converges to a propellant mass (:
     '''
