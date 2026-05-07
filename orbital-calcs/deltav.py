@@ -83,11 +83,11 @@ i_2 = 10  # [deg]
 RAAN_2 = 0  # [deg]
 d2_orbit = (h_2 + r_Earth, i_2 * np.pi/180, RAAN_2 * np.pi/180)
 
-# # debris 3 orbital parameters
-# h_3 = 36300  # [km]
-# i_3 = 10  # [deg]
-# RAAN_3 = 10  # [deg]
-# d3_orbit = (h_3 + r_Earth, i_3 * np.pi/180, RAAN_3 * np.pi/180)
+# debris 3 orbital parameters
+h_3 = 36300  # [km]
+i_3 = 10  # [deg]
+RAAN_3 = 10  # [deg]
+d3_orbit = (h_3 + r_Earth, i_3 * np.pi/180, RAAN_3 * np.pi/180)
 
 # # debris 4 orbital parameters
 # h_4 = 36300  # [km]
@@ -101,9 +101,9 @@ d2_orbit = (h_2 + r_Earth, i_2 * np.pi/180, RAAN_2 * np.pi/180)
 # RAAN_5 = 10  # [deg]
 # d5_orbit = (h_5 + r_Earth, i_5 * np.pi/180, RAAN_5 * np.pi/180)
 
-orbits = [rh_orbit, d1_orbit, d2_orbit] #, d3_orbit, d4_orbit, d5_orbit]  # list of tuples we can iterate over
+orbits = [rh_orbit, d1_orbit, d2_orbit, d3_orbit] #, d4_orbit, d5_orbit]  # list of tuples we can iterate over
 
-n_targets = 2  # CHANGE THIS IF ADDING MORE DEBRIS
+n_targets = 3  # CHANGE THIS IF ADDING MORE DEBRIS
 debris_list = list(itertools.permutations(range(1, n_targets + 1)))  # all permutations of visiting debris 
 
 '''GOING RH --> ALL DEBRIS --> RH'''

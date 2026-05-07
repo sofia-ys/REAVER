@@ -112,7 +112,7 @@ Isp = 220 # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downlo
 
 
 def propellant_m(dv, Isp, m_wet):
-    return m_wet * (1 - np.e**(-dv/(Isp * 9.80665)))
+    return m_wet * (1 - np.e**(-1000*dv/(Isp * 9.80665)))
 
 # for the way there we need to transport just drones 
 # iteration loop to find prop mass?
@@ -121,86 +121,49 @@ def propellant_m(dv, Isp, m_wet):
 # [https://arxiv.org/pdf/2601.11802v1]
 # because travelling so much distance, HUGE swarm doesn't make sense (since s/c won't be able to carry all propellant)
 n_drones = 12
-m_drone = 120  # preliminary estimate 
+m_drone = 215  # preliminary estimate 
 m_dry = m_drone * n_drones
 m_debris = 2000
 dv = sum(dv_tot)/10 * 1000  # average dv for each way
 print("-------------------------")
 
 # iterate to find propellant mass -- rocket equation
-def prop_mass_iteration(m_dry):
-    m_wet = m_dry + m_debris
-    for j in range(10):
-        m_wet = m_dry + m_debris + propellant_m(dv, Isp, m_wet)
-    m_return_prop = m_wet - (m_dry + m_debris)
-
-    m_wet = m_dry + m_return_prop
-    for i in range(10):
-        m_wet = m_dry + m_return_prop + propellant_m(dv, Isp, m_wet)
-    m_there_prop = m_wet - (m_dry + m_return_prop)
-
-    m_prop = m_there_prop + m_return_prop
-    return m_prop
-
-# initial propellant mass estimation using estimated dry mass 
-m_prop = prop_mass_iteration(m_dry)
-print(m_prop)
-
-# # monopropellant thruster dry mass estimation
-# m_dry_prop_sys = 0.178 * m_prop/12 + 7.69
-# print(m_dry_prop_sys)
-
-# for TWO targets 
-# dv_two_target = [0.6880360287114226, 0.5325970850852726, 0.15780588989264369]
-
-# # iterating for multiple targets 
-# def prop_mass_multiTarget_iteration(m_dry):
-    
-#     # return with both debris 
-#     dv = dv_two_target[-1]
-#     m_wet = m_dry + 2 * m_debris
-#     for j in range(10):
-#         m_wet = m_dry + 2 * m_debris + propellant_m(dv, Isp, m_wet)
-#     m_return_prop = m_wet - (m_dry + 2 * m_debris)
-#     print(m_return_prop)
-
-#     dv = dv_two_target[-2]
-#     m_wet = m_dry + m_debris + m_return_prop
-#     for k in range(10):
-#             m_wet = m_dry + m_return_prop + m_debris + propellant_m(dv, Isp, m_wet)
-#     m_middle_prop = m_wet - (m_dry + m_debris + m_return_prop)
-#     print(m_middle_prop)
-
-#     dv = dv_two_target[-3]
-#     m_wet = m_dry + m_return_prop + m_middle_prop
-#     for i in range(10):
-#         m_wet = m_dry + m_return_prop + m_middle_prop + propellant_m(dv, Isp, m_wet)
-#     m_there_prop = m_wet - (m_dry + m_return_prop + m_middle_prop)
-#     print(m_there_prop)
-
-#     m_prop = m_there_prop + m_return_prop + m_middle_prop
-#     return m_prop
-
-# m_prop = prop_mass_iteration(m_dry)
-# print(m_prop)
-
-
-
-
 def prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list):
     
     m_prop = 0
-    for i in range(n_targets):
-        dv = 1000 * dv_list[-(i+1)]  # we start with the last manouvre
+    for i in range(n_targets + 1):
+
         m_wet = m_dry + (n_targets - i) * m_debris  
         for j in range(10):
-            m_wet = m_dry + (n_targets - i) * m_debris + propellant_m(dv, Isp, m_wet)
-        m_prop += m_wet - (m_dry + (n_targets - i) * m_debris)
+            m_wet = m_dry + (n_targets - i) * m_debris + m_prop + propellant_m(dv_list[-(i+1)], Isp, m_wet)
+        m_prop += m_wet - (m_dry + (n_targets - i) * m_debris + m_prop)
 
     return m_prop
 
 
-# m_prop = prop_mass_multiTarget_iteration(m_dry, 2, [0.6880360287114226, 0.5325970850852726, 0.15780588989264369])
+print("-----------------ONE TARGET-----------------")
+n_targets = 1
+dv_list = [0.5196472774421069, 0.5196472774421069]
+m_drone = 152
+m_dry = m_drone * n_drones
+m_prop = prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list)
+m_frac = (m_prop/12) / ((m_dry/12) + (m_prop/12))
+print(m_prop, m_prop/12, m_frac)
 
-m_prop = prop_mass_multiTarget_iteration(m_dry, 1, [0.5196472774421069, 0.5196472774421069])
-print(m_prop)
+import matplotlib.pyplot as plt
+m_drone_range = range(250)
+m_frac_list = []
+for m_drone in m_drone_range:
+    m_dry = m_drone * n_drones
+    m_prop = prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list)
+    m_frac = (m_prop/12) / ((m_dry/12) + (m_prop/12))
+    m_frac_list.append(m_frac*100)
+
+# print(np.where([frac < 50 for frac in m_frac_list]))
+
+plt.plot(m_drone_range, m_frac_list)
+plt.xlabel("Individual Drone Dry Mass [kg]")
+plt.ylabel("Propellant Mass Fraction [%]")
+plt.plot([0, 250],[50, 50], linestyle='dashed')
+plt.plot([215, 215],[40, 100], linestyle='dashed')
+plt.show()
