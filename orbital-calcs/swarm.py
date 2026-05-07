@@ -108,18 +108,99 @@ print(dv_tot)  # dv of each manuevre taking the optimal path
 
 # PROPELLANT TYPES
 Isp = 220 # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
-Isp = 261 # [s] ASCENT [https://digitalcommons.usu.edu/cgi/viewcontent.cgi?article=5280&context=smallsat]
+# Isp = 261 # [s] ASCENT [https://digitalcommons.usu.edu/cgi/viewcontent.cgi?article=5280&context=smallsat]
 
 
-def propellant_m(dv, Isp, m_dry):
-    return m_dry * (np.e**(dv/(Isp * 9.08665)))
+def propellant_m(dv, Isp, m_wet):
+    return m_wet * (1 - np.e**(-dv/(Isp * 9.80665)))
 
 # for the way there we need to transport just drones 
 # iteration loop to find prop mass?
 
-
-
-m_drone = 15
-n_drones = 45
+# "while a 12-thruster configuration offers an optimal balance between control authority and thrust efficiency."
+# [https://arxiv.org/pdf/2601.11802v1]
+# because travelling so much distance, HUGE swarm doesn't make sense (since s/c won't be able to carry all propellant)
+n_drones = 12
+m_drone = 120  # preliminary estimate 
 m_dry = m_drone * n_drones
-m_debris = 1200
+m_debris = 2000
+dv = sum(dv_tot)/10 * 1000  # average dv for each way
+print("-------------------------")
+
+# iterate to find propellant mass -- rocket equation
+def prop_mass_iteration(m_dry):
+    m_wet = m_dry + m_debris
+    for j in range(10):
+        m_wet = m_dry + m_debris + propellant_m(dv, Isp, m_wet)
+    m_return_prop = m_wet - (m_dry + m_debris)
+
+    m_wet = m_dry + m_return_prop
+    for i in range(10):
+        m_wet = m_dry + m_return_prop + propellant_m(dv, Isp, m_wet)
+    m_there_prop = m_wet - (m_dry + m_return_prop)
+
+    m_prop = m_there_prop + m_return_prop
+    return m_prop
+
+# initial propellant mass estimation using estimated dry mass 
+m_prop = prop_mass_iteration(m_dry)
+print(m_prop)
+
+# # monopropellant thruster dry mass estimation
+# m_dry_prop_sys = 0.178 * m_prop/12 + 7.69
+# print(m_dry_prop_sys)
+
+# for TWO targets 
+# dv_two_target = [0.6880360287114226, 0.5325970850852726, 0.15780588989264369]
+
+# # iterating for multiple targets 
+# def prop_mass_multiTarget_iteration(m_dry):
+    
+#     # return with both debris 
+#     dv = dv_two_target[-1]
+#     m_wet = m_dry + 2 * m_debris
+#     for j in range(10):
+#         m_wet = m_dry + 2 * m_debris + propellant_m(dv, Isp, m_wet)
+#     m_return_prop = m_wet - (m_dry + 2 * m_debris)
+#     print(m_return_prop)
+
+#     dv = dv_two_target[-2]
+#     m_wet = m_dry + m_debris + m_return_prop
+#     for k in range(10):
+#             m_wet = m_dry + m_return_prop + m_debris + propellant_m(dv, Isp, m_wet)
+#     m_middle_prop = m_wet - (m_dry + m_debris + m_return_prop)
+#     print(m_middle_prop)
+
+#     dv = dv_two_target[-3]
+#     m_wet = m_dry + m_return_prop + m_middle_prop
+#     for i in range(10):
+#         m_wet = m_dry + m_return_prop + m_middle_prop + propellant_m(dv, Isp, m_wet)
+#     m_there_prop = m_wet - (m_dry + m_return_prop + m_middle_prop)
+#     print(m_there_prop)
+
+#     m_prop = m_there_prop + m_return_prop + m_middle_prop
+#     return m_prop
+
+# m_prop = prop_mass_iteration(m_dry)
+# print(m_prop)
+
+
+
+
+def prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list):
+    
+    m_prop = 0
+    for i in range(n_targets):
+        dv = 1000 * dv_list[-(i+1)]  # we start with the last manouvre
+        m_wet = m_dry + (n_targets - i) * m_debris  
+        for j in range(10):
+            m_wet = m_dry + (n_targets - i) * m_debris + propellant_m(dv, Isp, m_wet)
+        m_prop += m_wet - (m_dry + (n_targets - i) * m_debris)
+
+    return m_prop
+
+
+# m_prop = prop_mass_multiTarget_iteration(m_dry, 2, [0.6880360287114226, 0.5325970850852726, 0.15780588989264369])
+
+m_prop = prop_mass_multiTarget_iteration(m_dry, 1, [0.5196472774421069, 0.5196472774421069])
+print(m_prop)
