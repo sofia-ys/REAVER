@@ -25,6 +25,12 @@ m_dry = 1440  # [kg] just the spacecraft WITHOUT any propellant
 def propellant_m(dv, Isp, m_final):
     return m_final * (np.e**(1000*dv/(Isp * 9.80665)) - 1)
 
+# increase in dry mass from propellant mass 
+# RCS mass (Reaction Control System)
+# specifically for monopropellant beacuse it's the only non toxic fuel
+def rcs_m(m_prop):
+    return 0.178 * m_prop + 7.69
+
 # dv_list is the delta-v required for the sequence of manouevres
 # for 1 target: dv_list has the manoeuvres RH --> debris --> RH e.g. dv_list = [0.5196472774421069, 0.5196472774421069]
 # for multiple targets: dv_list has the manoeuvres RH --> debris 1 --> debris 2 --> ... --> RH e.g. dv_list = [0.6880360287114226, 0.5325970850852726, 0.15780588989264369] (for two debris)
@@ -35,7 +41,7 @@ def prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list):
     
     m_prop = 0
     for i in range(n_targets + 1):
-        m_final = m_dry + (n_targets - i) * m_debris + m_prop
+        m_final = m_dry + (n_targets - i) * m_debris + m_prop + rcs_m(m_prop)
         m_prop += propellant_m(dv_list[-(i+1)], Isp, m_final)
 
     return m_prop
