@@ -18,28 +18,25 @@ now you have the propellant mass required for your set of dv manouevres! this is
 # change these parameters as needed
 m_debris = 2000  # [kg]
 Isp = 220  # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
-m_dry = 1440  # [kg] drone stuff
+m_dry = 1440  # [kg] just the spacecraft WITHOUT any propellant
 
-# rocket mass equation: dv [km/s], Isp [s], m_wet [kg] 
-# although the propellant mass is not initially known, the next function iterates to find what it converges to
-def propellant_m(dv, Isp, m_wet):
-    return m_wet * (1 - np.e**(-1000*dv/(Isp * 9.80665)))
+# rocket mass equation: dv [km/s], Isp [s], m_final (at the end of the manouevre) [kg] 
+# when doing multi-target we need to carry the fuel for the next manouevre for us each time so the m_final varies between manouevres
+def propellant_m(dv, Isp, m_final):
+    return m_final * (np.e**(1000*dv/(Isp * 9.80665)) - 1)
 
 # dv_list is the delta-v required for the sequence of manouevres
 # for 1 target: dv_list has the manoeuvres RH --> debris --> RH e.g. dv_list = [0.5196472774421069, 0.5196472774421069]
 # for multiple targets: dv_list has the manoeuvres RH --> debris 1 --> debris 2 --> ... --> RH e.g. dv_list = [0.6880360287114226, 0.5325970850852726, 0.15780588989264369] (for two debris)
 # dv_list is in [km/s]
-# m_dry is the mass of the spacecraft without propellant [kg]
+# m_dry is the mass of the spacecraft without ANY propellant [kg]
 # n_targets is how many debris are being captured
 def prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list):
     
     m_prop = 0
     for i in range(n_targets + 1):
-
-        m_wet = m_dry + (n_targets - i) * m_debris  
-        for j in range(10):
-            m_wet = m_dry + (n_targets - i) * m_debris + m_prop + propellant_m(dv_list[-(i+1)], Isp, m_wet)
-        m_prop += m_wet - (m_dry + (n_targets - i) * m_debris + m_prop)
+        m_final = m_dry + (n_targets - i) * m_debris + m_prop
+        m_prop += propellant_m(dv_list[-(i+1)], Isp, m_final)
 
     return m_prop
 
