@@ -2,23 +2,23 @@ import numpy as np
 
 '''HOW TO USE:
 this tool calculates how much propellant mass is needed for a capture sequence before coming back to the RH
-1)  adjust the debris mass -- currently it uses one constant debris mass (so if you capture 5 debris they're all 2000kg) around line 19
-    m_debris = 2000
-2)  adjust the Isp for your type of propulsion around line 20
+1)  adjust the debris mass (line 19) -- this is the masses of the debris IN THE ORDER YOU'RE CAPTURING THEM (same as the delta-v manouevre order)
+    m_debris = [2000, 1200]
+2)  adjust the Isp for your type of propulsion (line 20)
     Isp = 220
-3)  adjust the dry mass of your spacecraft that is travelling  around line 21
+3)  adjust the dry mass of your spacecraft that is travelling (line 21))
     m_dry = 1440
-4)  set the number of targets you are capturing IN A ROW (between 1 and 5) around line 47
+4)  set the number of targets you are capturing IN A ROW -- between 1 and 5 (line 52)
     n_targets = 1
-5)  copy and paste the list of dv manouevres from the dv tool! around line 48
+5)  copy and paste the list of dv manouevres from the dv tool! (line 53)
     dv_list = [0.5196472774421069, 0.5196472774421069]
 now you have the propellant mass required for your set of dv manouevres! this is iterative so it converges to a propellant mass (:
     '''
 
 # change these parameters as needed
-m_debris = 2000  # [kg]
+m_debris = [2000, 1800]  # [kg]
 Isp = 220  # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
-m_dry = 1440  # [kg] just the spacecraft WITHOUT any propellant
+m_dry = 1440  # [kg] just the spacecraft WITHOUT any propellant (or propellant tanks etc since that's estimated)
 
 # rocket mass equation: dv [km/s], Isp [s], m_final (at the end of the manouevre) [kg] 
 # when doing multi-target we need to carry the fuel for the next manouevre for us each time so the m_final varies between manouevres
@@ -42,7 +42,7 @@ def prop_mass_multiTarget(m_dry, n_targets, dv_list):
     m_prop = 0
     m_prop_list = []
     for i in range(n_targets + 1):
-        m_final = m_dry + (n_targets - i) * m_debris + m_prop 
+        m_final = m_dry + sum(m_debris[:(n_targets - i)]) + m_prop 
         m_prop += propellant_m(dv_list[-(i+1)], Isp, m_final)
         m_prop_list.append(m_prop)
 
@@ -66,5 +66,6 @@ for j in range(1, n_targets + 1):
 
 print(f"========================{n_targets}-DEBRIS TRAJECTORY========================")
 print(f"Total propellant mass: {m_prop} [kg]")
+print(f"RCS dry mass: {rcs_m(m_prop)} [kg]")
 print(f"Manouevre trajectory: RH → {manouevre_list}RH ")
 print(f"Propellant mass at the start of each manouevre: {m_prop_list} [kg]")
