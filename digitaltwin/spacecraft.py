@@ -6,18 +6,18 @@ class SpaceCraft:
     def __init__(self):
         self.propulsion = None
         self.capture_system = None
-        self.AOCS = None
-        self.EPS = None
+        self.aocs = None
+        self.eps = None
         self.structures = None
-        self.TCS = None
-        self.TTC = None
-        self.CDH = None
+        self.tcs = None
+        self.ttc = None
+        self.cdh = None
 
         return
 
     def mass(self):
         """
-        Compute the mass of the spacecraft
+        Compute the digitaltwin of the spacecraft
 
         """
 
