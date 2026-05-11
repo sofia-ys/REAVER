@@ -1,0 +1,212 @@
+import math
+
+# Constants
+MU_EARTH = 3.986004418e14      # Earth's gravitational parameter [m^3/s^2]
+R_EARTH = 6378.137e3           # Earth equatorial radius [m]
+
+
+def angle_difference_rad(angle_1_deg, angle_2_deg):
+    """
+    Returns the smallest angular difference between two angles in radians.
+    Input angles are in degrees.
+    """
+    diff_deg = (angle_2_deg - angle_1_deg + 180) % 360 - 180
+    return math.radians(abs(diff_deg))
+
+
+def calculate_delta_v_and_transfer_time(
+    h0_km,
+    hf_km,
+    i0_deg,
+    if_deg,
+    raan0_deg,
+    raanf_deg,
+    low_thrust_N,
+    mass_kg,
+    high_thrust_N=None
+):
+    """
+    Calculates low-thrust and impulsive high-thrust Delta V and transfer time.
+
+    For low thrust:
+        transfer time = Delta V / acceleration
+
+    For high thrust:
+        burns are assumed impulsive, so burn duration is neglected.
+        transfer time = Hohmann coast time only.
+    """
+
+    # ---------------------------------------------------------------------
+    # Orbit radii
+    # ---------------------------------------------------------------------
+    r1 = R_EARTH + h0_km * 1e3
+    r2 = R_EARTH + hf_km * 1e3
+
+    # Circular orbital velocities
+    V1 = math.sqrt(MU_EARTH / r1)
+    V2 = math.sqrt(MU_EARTH / r2)
+
+    # Hohmann transfer semi-major axis
+    a_t = 0.5 * (r1 + r2)
+
+    # ---------------------------------------------------------------------
+    # Angles
+    # ---------------------------------------------------------------------
+    i1 = math.radians(i0_deg)
+    i2 = math.radians(if_deg)
+
+    delta_i = abs(i2 - i1)
+    delta_raan = angle_difference_rad(raan0_deg, raanf_deg)
+
+    # ---------------------------------------------------------------------
+    # LOW-THRUST DELTA V
+    # ---------------------------------------------------------------------
+    a_bar = 0.5 * (r1 + r2)
+    i_bar = 0.5 * (i1 + i2)
+
+    delta_v_raan_low = (
+        math.pi / 2
+        * math.sqrt(MU_EARTH / a_bar)
+        * delta_raan
+        * math.sin(i_bar)
+    )
+
+    delta_v_alt_inc_low = math.sqrt(
+        V1**2
+        + V2**2
+        - 2 * V1 * V2 * math.cos((math.pi / 2) * delta_i)
+    )
+
+    delta_v_total_low = delta_v_raan_low + delta_v_alt_inc_low
+
+    # Low-thrust transfer time
+    low_acceleration = low_thrust_N / mass_kg
+    low_transfer_time_s = delta_v_total_low / low_acceleration
+
+    # ---------------------------------------------------------------------
+    # HIGH-THRUST IMPULSIVE PLANE CHANGE
+    # ---------------------------------------------------------------------
+    cos_theta = (
+        math.cos(i1) * math.cos(i2)
+        + math.sin(i1) * math.sin(i2) * math.cos(delta_raan)
+    )
+
+    # Numerical safety
+    cos_theta = max(-1.0, min(1.0, cos_theta))
+
+    theta = math.acos(cos_theta)
+
+    delta_v_plane_high = 2 * V1 * math.sin(theta / 2)
+
+    # ---------------------------------------------------------------------
+    # HIGH-THRUST IMPULSIVE ALTITUDE CHANGE, HOHMANN
+    # ---------------------------------------------------------------------
+    delta_v_1_high = abs(
+        math.sqrt(2 * MU_EARTH / r1 - MU_EARTH / a_t)
+        - math.sqrt(MU_EARTH / r1)
+    )
+
+    delta_v_2_high = abs(
+        math.sqrt(MU_EARTH / r2)
+        - math.sqrt(2 * MU_EARTH / r2 - MU_EARTH / a_t)
+    )
+
+    delta_v_altitude_high = delta_v_1_high + delta_v_2_high
+
+    delta_v_total_high = delta_v_plane_high + delta_v_altitude_high
+
+    # High-thrust transfer time:
+    # impulsive burns, so only the Hohmann coast time is counted
+    high_transfer_time_s = math.pi * math.sqrt(a_t**3 / MU_EARTH)
+
+    # Equivalent form:
+    # high_transfer_time_s = math.pi * math.sqrt((r1 + r2)**3 / (8 * MU_EARTH))
+
+    # ---------------------------------------------------------------------
+    # RATIOS
+    # ---------------------------------------------------------------------
+    delta_v_ratio_low_to_high = delta_v_total_low / delta_v_total_high
+    transfer_time_ratio_low_to_high = low_transfer_time_s / high_transfer_time_s
+
+    if high_thrust_N is not None:
+        thrust_ratio_high_to_low = high_thrust_N / low_thrust_N
+    else:
+        thrust_ratio_high_to_low = None
+
+    return {
+        # Low-thrust
+        "low_delta_v_raan_m_s": delta_v_raan_low,
+        "low_delta_v_alt_inc_m_s": delta_v_alt_inc_low,
+        "low_delta_v_total_m_s": delta_v_total_low,
+        "low_acceleration_m_s2": low_acceleration,
+        "low_transfer_time_s": low_transfer_time_s,
+        "low_transfer_time_hours": low_transfer_time_s / 3600,
+        "low_transfer_time_days": low_transfer_time_s / (3600 * 24),
+
+        # High-thrust impulsive
+        "high_plane_change_angle_rad": theta,
+        "high_plane_change_angle_deg": math.degrees(theta),
+        "high_delta_v_plane_m_s": delta_v_plane_high,
+        "high_delta_v_altitude_m_s": delta_v_altitude_high,
+        "high_delta_v_1_m_s": delta_v_1_high,
+        "high_delta_v_2_m_s": delta_v_2_high,
+        "high_delta_v_total_m_s": delta_v_total_high,
+        "high_transfer_time_s": high_transfer_time_s,
+        "high_transfer_time_hours": high_transfer_time_s / 3600,
+        "high_transfer_time_days": high_transfer_time_s / (3600 * 24),
+
+        # Ratios
+        "thrust_ratio_high_to_low": thrust_ratio_high_to_low,
+        "delta_v_ratio_low_to_high": delta_v_ratio_low_to_high,
+        "transfer_time_ratio_low_to_high": transfer_time_ratio_low_to_high
+    }
+
+
+# -------------------------------------------------------------------------
+# Fill in your values here
+# -------------------------------------------------------------------------
+
+result = calculate_delta_v_and_transfer_time(
+    h0_km=35700,
+    hf_km=36500,
+
+    i0_deg=7.0,
+    if_deg=15.0,
+
+    raan0_deg=0,
+    raanf_deg=70,
+
+    low_thrust_N=0.23,     
+    mass_kg=1500
+)
+
+
+print("LOW-THRUST RESULTS")
+print("------------------")
+
+print("Low-thrust total Delta V [m/s]:")
+print(result["low_delta_v_total_m_s"])
+
+print("Low-thrust transfer time [days]:")
+print(result["low_transfer_time_days"])
+
+print()
+
+
+print("HIGH-THRUST IMPULSIVE RESULTS")
+print("-----------------------------")
+
+print("High-thrust total Delta V [m/s]:")
+print(result["high_delta_v_total_m_s"])
+
+print("High-thrust Hohmann transfer time [days]:")
+print(result["high_transfer_time_days"])
+
+print()
+
+
+print("RATIOS")
+print("------")
+print("Delta V ratio, low / high:")
+print(result["delta_v_ratio_low_to_high"])
+
