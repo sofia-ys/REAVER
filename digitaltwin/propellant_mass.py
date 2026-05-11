@@ -16,9 +16,9 @@ now you have the propellant mass required for your set of dv manouevres! this is
     '''
 
 # change these parameters as needed
-m_debris_list = [2000, 1800]  # [kg]
+m_debris_list = [1000]  # [kg]
 Isp = 220  # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
-m_dry = 1440  # [kg] just the spacecraft WITHOUT any propellant (or propellant tanks etc since that's estimated)
+m_dry = 1800  # [kg] just the spacecraft WITHOUT any propellant (or propellant tanks etc since that's estimated)
 
 # rocket mass equation: dv [km/s], Isp [s], m_final (at the end of the manouevre) [kg] 
 # when doing multi-target we need to carry the fuel for the next manouevre for us each time so the m_final varies between manouevres
@@ -37,7 +37,7 @@ def rcs_m(m_prop):
 # dv_list is in [km/s]
 # m_dry is the mass of the spacecraft without ANY propellant [kg]
 # n_targets is how many debris are being captured
-def prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list):
+def sequence_prop_mass(m_dry, n_targets, dv_list, m_debris_list):
     
     m_prop = 0
     m_prop_list = []
@@ -49,15 +49,19 @@ def prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list):
     return m_prop, m_prop_list[::-1]
 
 # here adjust your parameters
-n_targets = 2
-dv_list = [0.6880360287114226, 0.5325970850852726, 0.15780588989264369]
+n_targets = 1
+dv_list = [0.5325970850852726, 0.5325970850852726]
 
 # iterating to include propellant tanks dry mass as a part of the dry mass
-m_prop, _ = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)  # initialising our propellant mass estimates
-m_prop_prev = 0 
-while abs(m_prop - m_prop_prev) > 1:  # convergence condition
-    m_prop_prev = m_prop  # setting the previous estimate so we can compare
-    m_prop, m_prop_list = prop_mass_multiTarget(m_dry + rcs_m(m_prop), n_targets, dv_list, m_debris_list)
+def prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list):
+    m_prop, _ = sequence_prop_mass(m_dry, n_targets, dv_list, m_debris_list)  # initialising our propellant mass estimates
+    m_prop_prev = 0 
+    while abs(m_prop - m_prop_prev) > 1:  # convergence condition
+        m_prop_prev = m_prop  # setting the previous estimate so we can compare
+        m_prop, m_prop_list = sequence_prop_mass(m_dry + rcs_m(m_prop), n_targets, dv_list, m_debris_list)
+    return m_prop, m_prop_list
+
+m_prop, m_prop_list = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
 
 # just for fancy printing
 manouevre_list = ""
