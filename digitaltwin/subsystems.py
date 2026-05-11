@@ -1,3 +1,5 @@
+import numpy as np
+
 class Subsystem():
     def __init__(self) -> None:
         return
@@ -9,13 +11,40 @@ class Subsystem():
 # example mass budgets: page 82 table 20, page 83 table 22
 
 class Propulsion(Subsystem):
-    def __init__(
-            self,
-            n_main_thrusters: int,
-            feed_system_mass: float, #TODO: maybe this is propellant dependant?
-            #TODO: EXPAND
-    ) -> None:
+    def __init__(self, m_dry, n_targets, dv_list, m_debris_list, Isp):
+        self.m_dry = m_dry
+        self.n_targets = n_targets
+        self.dv_list = dv_list
+        self.m_debris_list = m_debris_list
+        self.Isp = Isp
         return
+    
+    # rocket equation to find prop mass
+    def propellant_m(self, dv, Isp, m_final):
+        return m_final * (np.e**(1000*dv/(Isp * 9.80665)) - 1)
+    
+    # Dry mass of a chemical RCS system [p. 166 ADSEE-1222] -- based on prop mass
+    def rcs_mass(self, m_prop):
+        return 0.178 * m_prop + 7.69
+    
+    # prop mass for multi-target missions where the s/c has to carry all its prop mass
+    def sequence_prop_mass(self):    
+        m_prop = 0
+        for i in range(self.n_targets + 1):
+                m_final = self.m_dry + sum(self.m_debris_list[:(self.n_targets - i)]) + m_prop 
+                m_prop += self.propellant_m(self.dv_list[-(i+1)], self.Isp, m_final)
+        return m_prop
+    
+    # calculating propellant mass and dry mass of propulsion system 
+    def prop_mass_multiTarget(self):  # TODO: change the name maybe? naming convention?
+        m_prop, _ = self.sequence_prop_mass(self.m_dry, self.n_targets, self.dv_list, self.m_debris_list)  # initialising our propellant mass estimates
+        m_prop_prev = 0 
+        while abs(m_prop - m_prop_prev) > 1:  # convergence condition
+                m_prop_prev = m_prop  # setting the previous estimate so we can compare
+                m_prop = self.sequence_prop_mass(self.m_dry + self.rcs_mass(m_prop), self.n_targets, self.dv_list, self.m_debris_list)
+        m_rcs = self.rcs_mass(m_prop)
+        return m_prop, m_rcs
+
 
 
 class CaptureSystem(Subsystem):
