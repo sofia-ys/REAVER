@@ -1,4 +1,5 @@
 import numpy as np
+from utils import Component
 
 class Subsystem():
     def __init__(self) -> None:
@@ -17,6 +18,7 @@ class Propulsion(Subsystem):
         self.dv_list = dv_list
         self.m_debris_list = m_debris_list
         self.Isp = Isp
+        self.m_prop, self.m_rcs = self.prop_mass_multiTarget()  # actually get the values
         return
     
     # rocket equation to find prop mass
@@ -44,6 +46,13 @@ class Propulsion(Subsystem):
                 m_prop = self.sequence_prop_mass(self.m_dry + self.rcs_mass(m_prop), self.n_targets, self.dv_list, self.m_debris_list)
         m_rcs = self.rcs_mass(m_prop)
         return m_prop, m_rcs
+    
+    def _base_mass_items(self):
+        return [
+            Component("propellant_mass", self.m_prop),
+            Component("feed_system_mass", self.m_rcs,
+                      note="dry mass of propulsion system, all inclusive (not component-wise)")
+        ]
 
 
 
@@ -91,22 +100,56 @@ class EPS(Subsystem):
         #TODO: EXPAND
         ) -> None:
         return
+    
+    def power_output_mass(self):
+        specific_power = 1/()
+        return self.power_output * specific_power
 
 class Structures(Subsystem):
     def __init__(self):
         return
 
 class TCS(Subsystem):
-    def __init__(self, paint_area, mli_area, osr_area, heatPipe_length, radiator_area, heater_area):
-        # ADSEE p. 124
-        self.paint_mass = 0.24 * paint_area  # Paints/coatings that modify the emissivity and/or absorptance of a surface
-        self.mli_mass = 0.3 * mli_area  # Multi-layer insulation (MLI); Multiple layers of thin foils
-        self.osr_mass = 1 * osr_area  # Second Surface Mirrors or Optical Surface Reflectors (OSR)
-        self.heatPipe_mass = 0.33 * heatPipe_length  # Heat pipes: To transport heat from surfaces of high temperature to surfaces with lower temperature
+    def __init__(self, coating_area, mli_area, osr_area, heatPipe_length, radiator_area, heater_area, m_dry):
+        # initial estimate of dry mass for preliminary mass fraction calculations
+        self.m_dry = m_dry
+
+        # all parameters that influence TCS sizing
+        self.coating_area = coating_area
+        self.mli_area = mli_area
+        self.osr_area = osr_area
+        self.heatPipe_length = heatPipe_length
+        self.radiator_area = radiator_area
+        self.heater_area = heater_area
+
+        # ADSEE p. 124 values for thermal materials
+        self.coating_mass = 0.24  # [kg/m2] Paints/coatings that modify the emissivity and/or absorptance of a surface
+        self.mli_mass = 0.3  # [kg/m2] Multi-layer insulation (MLI); Multiple layers of thin foils
+        self.osr_mass = 1  # [kg/m2] Second Surface Mirrors or Optical Surface Reflectors (OSR)
+        self.heatPipe_mass = 0.33  # [kg/m] Heat pipes: To transport heat from surfaces of high temperature to surfaces with lower temperature
         # Typical mass for active, deployable radiators is in range [5-15 kg/m2]
-        self.radiator_mass = 15 * radiator_area  # Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space 
-        self.heater_mass = 2 * heater_area  # Heaters: To provide local heating for instance to prevent propellants from freezing or a drastic reduction in battery capacity
+        self.radiator_mass = 15  # [kg/m2] Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space 
+        self.heater_mass = 2  # [kg/m2] Heaters: To provide local heating for instance to prevent propellants from freezing or a drastic reduction in battery capacity
         return
+    
+    def _base_mass_items(self):
+        return [
+            Component("coating_mass", self.coating_mass * self.coating_area,
+                      note="check density of chosen paint"),
+            Component("mli_mass", self.mli_mass * self.mli_area,
+                      note="check density of chosen insulator"),
+            Component("osr_mass", self.osr_mass * self.osr_area,
+                      note="check density of chosen insulator"),
+            Component("heatPipe_mass", self.heatPipe_mass * self.heatPipe_length,
+                      note="check length of chosen heat pipes"),
+            Component("radiator_mass", self.radiator_mass * self.radiator_area,
+                      note="check"),
+            Component("heater_mass", self.heater_mass * self.heater_area,
+                      note="check")
+        ]
+    
+    def _preliminary_mass(self):
+        return 0.05 * dry_mass
     
     # TCS is 2-5% of s/c dry mass (page 115)
     
