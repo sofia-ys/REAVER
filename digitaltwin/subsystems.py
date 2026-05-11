@@ -149,16 +149,24 @@ class TCS(Subsystem):
         ]
     
     def _preliminary_mass(self):
-        return 0.05 * dry_mass
+        return 0.05 * self.dry_mass
     
     # TCS is 2-5% of s/c dry mass (page 115)
     
 
 class TTC(Subsystem):
-    def __init__(self,
-                frequency_band: str,
-                n_antennas: int,):
+    def __init__(self, tx_RF_power, tx_density, RF_power_req):
+        self.tx_RF_power = tx_RF_power
+        self.tx_density = tx_density
+        self.RF_power_req = RF_power_req
         return
+    
+    def mass_transponder(self):
+        # low RF powers (up to about 10 W RF power)
+        if self.RF_power_req == "low":
+            return self.tx_RF_power / self.tx_density
+        else:
+            return 
 
 # harness (wiring, cables, etc) is 3-10% of dry mass (page 143)
 class CDH(Subsystem):
