@@ -28,7 +28,7 @@ def propellant_m(dv, Isp, m_final):
 # increase in dry mass from propellant mass -> RCS mass (Reaction Control System)
 # specifically for monopropellant beacuse it's the only non toxic fuel ADSEE p. 166
 # RSE = 8.1%, propellant mass in range 30-300kg (extrapolating for this project)
-def rcs_m(m_prop):
+def rcs_mass(m_prop):
     return 0.178 * m_prop + 7.69
 
 # dv_list is the delta-v required for the sequence of manouevres
@@ -58,10 +58,11 @@ def prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list):
     m_prop_prev = 0 
     while abs(m_prop - m_prop_prev) > 1:  # convergence condition
         m_prop_prev = m_prop  # setting the previous estimate so we can compare
-        m_prop, m_prop_list = sequence_prop_mass(m_dry + rcs_m(m_prop), n_targets, dv_list, m_debris_list)
-    return m_prop, m_prop_list
+        m_prop, m_prop_list = sequence_prop_mass(m_dry + rcs_mass(m_prop), n_targets, dv_list, m_debris_list)
+    m_rcs = rcs_mass(m_prop)
+    return m_prop, m_prop_list, m_rcs
 
-m_prop, m_prop_list = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
+m_prop, m_prop_list, m_rcs = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
 
 # just for fancy printing
 manouevre_list = ""
@@ -70,6 +71,6 @@ for j in range(1, n_targets + 1):
 
 print(f"========================{n_targets}-DEBRIS TRAJECTORY========================")
 print(f"Total propellant mass: {m_prop} [kg]")
-print(f"RCS dry mass: {rcs_m(m_prop)} [kg]")
+print(f"RCS dry mass: {m_rcs} [kg]")
 print(f"Manouevre trajectory: RH → {manouevre_list}RH ")
 print(f"Propellant mass at the start of each manouevre: {m_prop_list} [kg]")
