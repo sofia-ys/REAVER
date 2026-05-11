@@ -1,0 +1,124 @@
+import math
+
+# Constants
+MU_EARTH = 3.986004418e14      # Earth's gravitational parameter [m^3/s^2]
+R_EARTH = 6378.137e3           # Earth equatorial radius [m]
+
+
+def angle_difference_rad(angle_1_deg, angle_2_deg):
+    """
+    Returns the smallest angular difference between two angles in radians.
+    Input angles are in degrees.
+    """
+    diff_deg = (angle_2_deg - angle_1_deg + 180) % 360 - 180
+    return math.radians(abs(diff_deg))
+
+
+def calculate_low_thrust_delta_v(
+    h0_km,
+    hf_km,
+    i0_deg,
+    if_deg,
+    raan0_deg,
+    raanf_deg,
+    thrust_N,
+    mass_kg
+):
+    """
+    Calculates required Delta V and transfer time using thrust and mass.
+
+    Inputs:
+        h0_km: initial altitude [km]
+        hf_km: final altitude [km]
+        i0_deg: initial inclination [deg]
+        if_deg: final inclination [deg]
+        raan0_deg: initial RAAN [deg]
+        raanf_deg: final RAAN [deg]
+        thrust_N: electric propulsion thrust [N]
+        mass_kg: spacecraft mass [kg]
+
+    Outputs:
+        Delta V values and transfer time.
+    """
+
+    # Convert altitudes to orbital radii
+    r0 = R_EARTH + h0_km * 1e3
+    rf = R_EARTH + hf_km * 1e3
+
+    # For circular orbits, semi-major axis equals orbital radius
+    a0 = r0
+    af = rf
+    a_bar = 0.5 * (a0 + af)
+
+    # Convert inclinations to radians
+    i0 = math.radians(i0_deg)
+    if_ = math.radians(if_deg)
+    i_bar = 0.5 * (i0 + if_)
+
+    # Orbital changes
+    delta_i = abs(if_ - i0)
+    delta_raan = angle_difference_rad(raan0_deg, raanf_deg)
+
+    # Circular orbital velocities
+    V0 = math.sqrt(MU_EARTH / r0)
+    Vf = math.sqrt(MU_EARTH / rf)
+
+    # Delta V for RAAN change
+    delta_v_raan = (
+        math.pi / 2
+        * math.sqrt(MU_EARTH / a_bar)
+        * delta_raan
+        * math.sin(i_bar)
+    )
+
+    # Delta V for combined altitude and inclination change
+    delta_v_alt_inc = math.sqrt(
+        V0**2
+        + Vf**2
+        - 2 * V0 * Vf * math.cos((math.pi / 2) * delta_i)
+    )
+
+    # Total Delta V
+    delta_v_total = delta_v_raan + delta_v_alt_inc
+
+    # Low-thrust acceleration
+    acceleration_m_s2 = thrust_N / mass_kg
+
+    # Transfer time
+    transfer_time_s = delta_v_total / acceleration_m_s2
+
+    return {
+        "delta_v_raan_m_s": delta_v_raan,
+        "delta_v_alt_inc_m_s": delta_v_alt_inc,
+        "delta_v_total_m_s": delta_v_total,
+        "acceleration_m_s2": acceleration_m_s2,
+        "transfer_time_s": transfer_time_s,
+        "transfer_time_hours": transfer_time_s / 3600,
+        "transfer_time_days": transfer_time_s / (3600 * 24)
+    }
+
+
+# -------------------------------------------------------------------------
+# Fill in your values here
+# -------------------------------------------------------------------------
+
+result = calculate_low_thrust_delta_v(
+    h0_km=35700,          # initial altitude [km]
+    hf_km=36500,          # final altitude [km]
+
+    i0_deg=7.0,        # initial inclination [deg]
+    if_deg=15.0,        # final inclination [deg]
+
+    raan0_deg=0,       # initial RAAN [deg]
+    raanf_deg=70,       # final RAAN [deg]
+
+    thrust_N=0.23,      # thrust [N]
+    mass_kg=1500         # spacecraft mass [kg]
+)
+
+
+print("Total Delta V [m/s]:")
+print(result["delta_v_total_m_s"])
+
+print("Transfer time [days]:")
+print(result["transfer_time_days"])
