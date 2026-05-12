@@ -90,20 +90,28 @@ class AOCS(Subsystem):
         return
 
 class EPS(Subsystem):
+    """
+    Electrical Power System (EPS), includes power generation, storage and handling.
+    Assumes PV system including batteries for default value of specific power
+    """
     # EPS is 20-50% of s/c dry mass (page 131)
     # power source mass esimtation (page 166)
     def __init__(
         self,
-        battery_capacity_kwh: float,
-        solar_power_w: float,
-        solar_cell_efficiency: float,
+        power_output: float, # [W] continuous required power output of the power system
+        specific_power: float = 12, #[W/kg] Photo-voltaic system (incl. batteries) range 7-12 We/kg
+        # battery_capacity_kwh: float,
+        # solar_power_w: float,
+        # solar_cell_efficiency: float,
         #TODO: EXPAND
         ) -> None:
+        self.power_output = power_output
+        self.specific_power = specific_power
         return
     
     def power_output_mass(self):
-        specific_power = 1/()
-        return self.power_output * specific_power
+        specific_mass = 1 / self.specific_power
+        return self.power_output * specific_mass
 
 class Structures(Subsystem):
     def __init__(self):
@@ -170,7 +178,37 @@ class TTC(Subsystem):
 
 # harness (wiring, cables, etc) is 3-10% of dry mass (page 143)
 class CDH(Subsystem):
+    """
+    Command & Data Handling (CDH), consisting of
+    - on-board computer (obc): standard obc
+    - payload processor (pp): processing of vbn and robotics
+    - remote terminal unit (rtu),
+    - solid-state recorder,
+    - data harness
+    """
+
+    # TODO: Consider COTS components, probably additional computing capabilities required for machine learning models used by visual-based navigation, possibly GPUs
+    # TODO: payload processing might be better handled in the payload subsystem
+    # For redundancy, I think core spacecraft systems should be flight-proven radiation hardened components (so not single-board new-space systems)
+    # but they provide insufficient computing capabilites for complex ML/AI vision-based navigation [1]
+    # thus, separate (and probably redundant) high-performance gpus should be included, but I think these should
+    # be included in the VBN system, thus in the payload subsystem.
+
+    # [1] https://arc.aiaa.org/doi/pdf/10.2514/1.I010555
+
+    # newspace (all in one): https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
+
     def __init__(
                 self,
-                harness_mass: float):
+                n_redundancy: int = 2
+    ):
+        self.data_harness_mass = None
+        self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
+        self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
+        self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
+        self.rtu_mass   = 17    # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2023-11/Remote-Terminal-Unit.PDF
+        self.n_redundancy = n_redundancy
         return
+
+    def mass(self):
+        return self.n_redundancy * (self.obc_mass + self.pp_mass + self.ssr_mass + self.rtu_mass)
