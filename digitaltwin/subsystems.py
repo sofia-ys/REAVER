@@ -1,16 +1,30 @@
+from typing import Optional
+
 import numpy as np
 from utils import Component
 
+def _apply_contingency(base_mass: float, contingency: float) -> float:
+    """Return mass including contingency margin."""
+    return base_mass * (1.0 + contingency)
+
 class Subsystem():
-    def __init__(self) -> None:
+    DEFAULT_CONTINGENCY = 0.20
+
+    def __init__(self, contingency: Optional[float] = None) -> None:
+        self.contingency = contingency if contingency is not None else self.DEFAULT_CONTINGENCY
         return
 
-    def mass(self):
-        """Calculate the mass of the subsystem"""
-        return
-    
+    def mass(self) -> float:
+        """Total subsystem mass including contingency [kg]."""
+        base = sum(item.mass_kg for item in self._base_mass_items())
+        return _apply_contingency(base, self.contingency)
+
+
+#==================================================================
+# MASS DEPENDENT SUBSYSTEMS
+#==================================================================
+
 # example mass budgets: page 82 table 20, page 83 table 22
-
 class Propulsion(Subsystem):
     def __init__(self, m_dry, n_targets, dv_list, m_debris_list, Isp):
         self.m_dry = m_dry
@@ -54,17 +68,6 @@ class Propulsion(Subsystem):
                       note="dry mass of propulsion system, all inclusive (not component-wise)")
         ]
 
-
-
-class CaptureSystem(Subsystem):
-    """
-    Capture system including Capture Mechanism and Rendezvous, Proximity Operations sensors (RPO)
-    """
-    def __init__(
-            self
-    ):
-        return
-
 class AOCS(Subsystem):
     """
     Attitude and Orbit Control Subsystem (AOCS)
@@ -72,13 +75,14 @@ class AOCS(Subsystem):
     """
     def __init__(
             self,
-            # Actuators
+            # Actuators (sizing is mass-dependant)
+            # But how do we do sizing autonomously? should we?
             n_reaction_wheels: int,
             n_mangetorquers: int,
             n_control_moment_gyros: int,
             n_rcs_thrusters: int, #TODO: is rcs included in propulsion or AOCS?
 
-            # Sensors
+            # Sensors (sizing is mass-independant)
             n_star_trackers: int,
             n_sun_sensors: int,
             n_horizon_sensors: int,
@@ -96,6 +100,9 @@ class EPS(Subsystem):
     """
     # EPS is 20-50% of s/c dry mass (page 131)
     # power source mass esimtation (page 166)
+
+    # EPS is not necessarily mass dependant, but probably mass related
+    # Could potentially use a statistical relation of power-drymass instead of required power (how will we get this)
     def __init__(
         self,
         power_output: float, # [W] continuous required power output of the power system
@@ -136,10 +143,10 @@ class TCS(Subsystem):
         self.osr_mass = 1  # [kg/m2] Second Surface Mirrors or Optical Surface Reflectors (OSR)
         self.heatPipe_mass = 0.33  # [kg/m] Heat pipes: To transport heat from surfaces of high temperature to surfaces with lower temperature
         # Typical mass for active, deployable radiators is in range [5-15 kg/m2]
-        self.radiator_mass = 15  # [kg/m2] Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space 
+        self.radiator_mass = 15  # [kg/m2] Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space
         self.heater_mass = 2  # [kg/m2] Heaters: To provide local heating for instance to prevent propellants from freezing or a drastic reduction in battery capacity
         return
-    
+
     def _base_mass_items(self):
         return [
             Component("coating_mass", self.coating_mass * self.coating_area,
@@ -155,12 +162,25 @@ class TCS(Subsystem):
             Component("heater_mass", self.heater_mass * self.heater_area,
                       note="check")
         ]
-    
+
     def _preliminary_mass(self):
         return 0.05 * self.dry_mass
-    
+
     # TCS is 2-5% of s/c dry mass (page 115)
-    
+
+#==================================================================
+# MASS INDEPENDENT SUBSYSTEMS
+#==================================================================
+
+class CaptureSystem(Subsystem):
+    """
+    Capture system including Capture Mechanism and Rendezvous, Proximity Operations sensors (RPO)
+    """
+    # Capture system should be independent of mass, i think?
+    def __init__(
+            self
+    ):
+        return
 
 class TTC(Subsystem):
     def __init__(self, tx_RF_power, tx_density, RF_power_req):
@@ -189,6 +209,7 @@ class CDH(Subsystem):
 
     # TODO: Consider COTS components, probably additional computing capabilities required for machine learning models used by visual-based navigation, possibly GPUs
     # TODO: payload processing might be better handled in the payload subsystem
+    # TODO: maybe use different redundancy values for specific components
     # For redundancy, I think core spacecraft systems should be flight-proven radiation hardened components (so not single-board new-space systems)
     # but they provide insufficient computing capabilites for complex ML/AI vision-based navigation [1]
     # thus, separate (and probably redundant) high-performance gpus should be included, but I think these should
@@ -210,5 +231,15 @@ class CDH(Subsystem):
         self.n_redundancy = n_redundancy
         return
 
+    def _base_mass_items(self):
+        return [
+            Component("data_harness_mass", self.data_harness_mass), #TODO should data harness scale with redundancy?
+            Component("obc_mass", self.n_redundancy * self.obc_mass),
+            Component("pp_mass", self.n_redundancy * self.pp_mass),
+            Component("ssr_mass", self.n_redundancy * self.ssr_mass),
+            Component("rtu_mass", self.n_redundancy * self.rtu_mass),
+        ]
+
     def mass(self):
         return self.n_redundancy * (self.obc_mass + self.pp_mass + self.ssr_mass + self.rtu_mass)
+
