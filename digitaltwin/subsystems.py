@@ -207,7 +207,7 @@ class AOCS(Subsystem):
         self.m_aocs_sensors = 0
         self.m_aocs_actuators = 0
 
-        for sensor in self.sensors:
+        for sensor in self.sensors.values():
             self.m_aocs_sensors += sensor[1]
         for actuator in self.actuators:
             self.m_aocs_actuators += actuator[1]

@@ -13,7 +13,7 @@ class SpaceCraft:
         self.sc_type = sc_type
         self.n_redundancy = n_redundancy
 
-        self.aocs = AOCS(sc_type)
+        self.aocs = AOCS()
         self.cdh = CDH(n_redundancy)  
 
         self.m_aocs = self.aocs.mass()
@@ -27,7 +27,7 @@ class SpaceCraft:
         """
         m_dry = self.m_aocs + self.m_cdh  # mass independent systems
         m_dry_prev = 0
-
+        print(m_dry)
         while abs(m_dry - m_dry_prev) > 1:
             m_dry_prev = m_dry
 
@@ -46,6 +46,7 @@ class SpaceCraft:
             m_ttc = ttc.mass()
 
             m_dry = (self.m_aocs + self.m_cdh) + m_propulsion + m_capture_system + m_eps + m_structures + m_tcs + m_ttc
+            print(m_dry)
 
         self.propulsion = Propulsion(m_dry, self.n_targets, self.dv_list, self.m_debris_list, self.Isp) 
         self.capture_system = CaptureSystem(m_dry)
