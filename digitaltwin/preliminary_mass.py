@@ -1,6 +1,31 @@
 import numpy as np
 from propellant_mass import prop_mass_multiTarget
 
+# certain subsystems (or components of them) are dry mass independent, while others are dependent
+# IDEA: iterative loop that converges to a dry mass
+# initial fixed dry mass made up of the DRY MASS INDEPENDENT components --> plug in dry mass --> recalculate dry mass with all DRY MASS DEPENDENT components --> iterate
+
+# DRY MASS INDEPENDENT PARAMETERS
+m_dry = 1800  # [kg] initial guess base on NASA NM1 
+n_targets = 1  # targets debris consecutively 
+dv_list = [0.66, 0.66]  # [km/s] single retrieval 0.66 per debris, multi retrieval 1.84 per debris
+m_debris_list = [1500]  # [kg] mass of debris collected
+m_aocs = 141.1  # [kg] for single s/c missions
+
+# DRY MASS DEPENDENT SUBSYSTEMS  (propulsion, aocs, )
+
+
+for i in range(10):
+    _, _, m_rcs = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
+    m_eps = 0.294 * m_dry  # based on percentages
+    
+
+
+    m_dry = m_rcs + m_aocs + m_eps
+
+    print(m_dry)
+
+
 # ''' dry mass from payload mass
 #     earth orbiting s/c [ADSEE p. 256] '''
 # # payload mass range: 20-550 kg
@@ -62,21 +87,3 @@ from propellant_mass import prop_mass_multiTarget
 # # capture mechanism varies 
 
 # # m_prop, _, m_rcs = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
-
-
-# IDEA: plug in dry mass --> recalculate dry mass --> plug in dry mass
-m_dry = 1800  # [kg] initial guess base on NASA NM1 
-n_targets = 1  # targets debris consecutively 
-dv_list = [0.66, 0.66]  # [km/s] single retrieval 0.66 per debris, multi retrieval 1.84 per debris
-m_debris_list = [1500]  # [kg] mass of debris collected
-m_aocs = 141.1  # [kg] for single s/c missions
-
-for i in range(10):
-    _, _, m_rcs = prop_mass_multiTarget(m_dry, n_targets, dv_list, m_debris_list)
-    m_eps = 0.294 * m_dry  # based on percentages
-    
-
-
-    m_dry = m_rcs + m_aocs + m_eps
-
-    print(m_dry)

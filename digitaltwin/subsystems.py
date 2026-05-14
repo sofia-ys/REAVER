@@ -15,9 +15,9 @@ class Subsystem():
         return
 
     def mass(self) -> float:
-        """Total subsystem mass including contingency [kg]."""
-        base = sum(item.mass_kg for item in self._base_mass_items())
-        return _apply_contingency(base, self.contingency)
+        """Total subsystem mass -- not including yet contingency [kg]."""
+        m_subsystem = sum(item.mass_kg for item in self._base_mass_items())
+        return m_subsystem # _apply_contingency(base, self.contingency)
 
 
 #==================================================================
@@ -26,14 +26,14 @@ class Subsystem():
 
 # example mass budgets: page 82 table 20, page 83 table 22
 class Propulsion(Subsystem):
-    def __init__(self, m_dry, n_targets, dv_list, m_debris_list, Isp):
-        self.m_dry = m_dry
+    def __init__(self, m_dry:float, n_targets:int, dv_list:list, m_debris_list:list, Isp:float) -> None:
+        self.m_dry = m_dry  # initial guess
         self.n_targets = n_targets
         self.dv_list = dv_list
         self.m_debris_list = m_debris_list
         self.Isp = Isp
-        self.m_prop, self.m_rcs = self.prop_mass_multiTarget()  # actually get the values
-        return
+
+        self.prop_mass_multiTarget()  # actually get the values
     
     # rocket equation to find prop mass
     def propellant_m(self, dv, Isp, m_final):
@@ -59,7 +59,10 @@ class Propulsion(Subsystem):
                 m_prop_prev = m_prop  # setting the previous estimate so we can compare
                 m_prop = self.sequence_prop_mass(self.m_dry + self.rcs_mass(m_prop), self.n_targets, self.dv_list, self.m_debris_list)
         m_rcs = self.rcs_mass(m_prop)
-        return m_prop, m_rcs
+
+        # saving the values we want into our class
+        self.m_prop = m_prop 
+        self.m_rcs = m_rcs
     
     def _base_mass_items(self):
         return [
@@ -68,103 +71,74 @@ class Propulsion(Subsystem):
                       note="dry mass of propulsion system, all inclusive (not component-wise)")
         ]
 
-class AOCS(Subsystem):
-    """
-    Attitude and Orbit Control Subsystem (AOCS)
-
-    """
-    def __init__(
-            self,
-            # Actuators (sizing is mass-dependant)
-            # But how do we do sizing autonomously? should we?
-            n_reaction_wheels: int,
-            n_mangetorquers: int,
-            n_control_moment_gyros: int,
-            n_rcs_thrusters: int, #TODO: is rcs included in propulsion or AOCS?
-
-            # Sensors (sizing is mass-independant)
-            n_star_trackers: int,
-            n_sun_sensors: int,
-            n_horizon_sensors: int,
-            n_gps_receivers: int,
-            n_imus: int,
-            n_magnetometers: int,
-
-    ) -> None:
-        return
-
-class EPS(Subsystem):
-    """
-    Electrical Power System (EPS), includes power generation, storage and handling.
-    Assumes PV system including batteries for default value of specific power
-    """
-    # EPS is 20-50% of s/c dry mass (page 131)
-    # power source mass esimtation (page 166)
-
-    # EPS is not necessarily mass dependant, but probably mass related
-    # Could potentially use a statistical relation of power-drymass instead of required power (how will we get this)
-    def __init__(
-        self,
-        power_output: float, # [W] continuous required power output of the power system
-        specific_power: float = 12, #[W/kg] Photo-voltaic system (incl. batteries) range 7-12 We/kg
-        # battery_capacity_kwh: float,
-        # solar_power_w: float,
-        # solar_cell_efficiency: float,
-        #TODO: EXPAND
-        ) -> None:
-        self.power_output = power_output
-        self.specific_power = specific_power
-        return
-    
-    def power_output_mass(self):
-        specific_mass = 1 / self.specific_power
-        return self.power_output * specific_mass
 
 class Structures(Subsystem):
-    def __init__(self):
-        return
-
-class TCS(Subsystem):
-    def __init__(self, coating_area, mli_area, osr_area, heatPipe_length, radiator_area, heater_area, m_dry):
-        # initial estimate of dry mass for preliminary mass fraction calculations
-        self.m_dry = m_dry
-
-        # all parameters that influence TCS sizing
-        self.coating_area = coating_area
-        self.mli_area = mli_area
-        self.osr_area = osr_area
-        self.heatPipe_length = heatPipe_length
-        self.radiator_area = radiator_area
-        self.heater_area = heater_area
-
-        # ADSEE p. 124 values for thermal materials
-        self.coating_mass = 0.24  # [kg/m2] Paints/coatings that modify the emissivity and/or absorptance of a surface
-        self.mli_mass = 0.3  # [kg/m2] Multi-layer insulation (MLI); Multiple layers of thin foils
-        self.osr_mass = 1  # [kg/m2] Second Surface Mirrors or Optical Surface Reflectors (OSR)
-        self.heatPipe_mass = 0.33  # [kg/m] Heat pipes: To transport heat from surfaces of high temperature to surfaces with lower temperature
-        # Typical mass for active, deployable radiators is in range [5-15 kg/m2]
-        self.radiator_mass = 15  # [kg/m2] Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space
-        self.heater_mass = 2  # [kg/m2] Heaters: To provide local heating for instance to prevent propellants from freezing or a drastic reduction in battery capacity
-        return
+    # no formula offered in ADSEE -> can just use percentage of dry mass as estimation 
+    # dry mass range 50-1750 kg, mass of the structures (and mechanisms) system is roughly about 20 25% of the dry mass with a relative standard error of 21.7% (p. 104)
+    # BASELINE REPORT USES 25% hence that value is taken
+    def __init__(self, m_dry):
+        self.m_structures = 0.25 * m_dry
 
     def _base_mass_items(self):
         return [
-            Component("coating_mass", self.coating_mass * self.coating_area,
-                      note="check density of chosen paint"),
-            Component("mli_mass", self.mli_mass * self.mli_area,
-                      note="check density of chosen insulator"),
-            Component("osr_mass", self.osr_mass * self.osr_area,
-                      note="check density of chosen insulator"),
-            Component("heatPipe_mass", self.heatPipe_mass * self.heatPipe_length,
-                      note="check length of chosen heat pipes"),
-            Component("radiator_mass", self.radiator_mass * self.radiator_area,
-                      note="check"),
-            Component("heater_mass", self.heater_mass * self.heater_area,
-                      note="check")
+            Component("structures_mass", self.m_structures,
+                      note="historical data based estimation")
         ]
 
-    def _preliminary_mass(self):
-        return 0.05 * self.dry_mass
+
+class TCS(Subsystem):
+    '''Thermal Control System (TCS) -- preliminary estimate'''
+    # taking 3% of dry mass being TCS (from baseline report)
+    def __init__(self, m_dry):
+        self.m_tcs = 0.03 * m_dry
+
+    def _base_mass_items(self):
+        return [
+            Component("tcs_mass", self.m_tcs,
+                      note="historical data based estimation")
+        ]
+    
+    '''IF WE WANT TO MAKE IT MORE DETAILED (later)'''
+    # def __init__(self, coating_area, mli_area, osr_area, heatPipe_length, radiator_area, heater_area, m_dry):
+    #     # initial estimate of dry mass for preliminary mass fraction calculations
+    #     self.m_dry = m_dry
+
+    #     # all parameters that influence TCS sizing
+    #     self.coating_area = coating_area
+    #     self.mli_area = mli_area
+    #     self.osr_area = osr_area
+    #     self.heatPipe_length = heatPipe_length
+    #     self.radiator_area = radiator_area
+    #     self.heater_area = heater_area
+
+    #     # ADSEE p. 124 values for thermal materials
+    #     self.coating_mass = 0.24  # [kg/m2] Paints/coatings that modify the emissivity and/or absorptance of a surface
+    #     self.mli_mass = 0.3  # [kg/m2] Multi-layer insulation (MLI); Multiple layers of thin foils
+    #     self.osr_mass = 1  # [kg/m2] Second Surface Mirrors or Optical Surface Reflectors (OSR)
+    #     self.heatPipe_mass = 0.33  # [kg/m] Heat pipes: To transport heat from surfaces of high temperature to surfaces with lower temperature
+    #     # Typical mass for active, deployable radiators is in range [5-15 kg/m2]
+    #     self.radiator_mass = 15  # [kg/m2] Radiators: active radiators uses heat pipes to transport heat from a hot spot to a cold spot where the heat can be radiated out into space
+    #     self.heater_mass = 2  # [kg/m2] Heaters: To provide local heating for instance to prevent propellants from freezing or a drastic reduction in battery capacity
+    #     return
+
+    # def _base_mass_items(self):
+    #     return [
+    #         Component("coating_mass", self.coating_mass * self.coating_area,
+    #                   note="check density of chosen paint"),
+    #         Component("mli_mass", self.mli_mass * self.mli_area,
+    #                   note="check density of chosen insulator"),
+    #         Component("osr_mass", self.osr_mass * self.osr_area,
+    #                   note="check density of chosen insulator"),
+    #         Component("heatPipe_mass", self.heatPipe_mass * self.heatPipe_length,
+    #                   note="check length of chosen heat pipes"),
+    #         Component("radiator_mass", self.radiator_mass * self.radiator_area,
+    #                   note="check"),
+    #         Component("heater_mass", self.heater_mass * self.heater_area,
+    #                   note="check")
+    #     ]
+
+    # def _preliminary_mass(self):
+    #     return 0.05 * self.dry_mass
 
     # TCS is 2-5% of s/c dry mass (page 115)
 
@@ -176,25 +150,137 @@ class CaptureSystem(Subsystem):
     """
     Capture system including Capture Mechanism and Rendezvous, Proximity Operations sensors (RPO)
     """
+    # i just wanna make this work, we can fix this more later
     # Capture system should be independent of mass, i think?
-    def __init__(
-            self
-    ):
-        return
+    def __init__(self, m_dry) -> None:
+        # based on the baseline report 30% for capture
+        self.m_captureSys = m_dry * 0.3
 
-class TTC(Subsystem):
-    def __init__(self, tx_RF_power, tx_density, RF_power_req):
-        self.tx_RF_power = tx_RF_power
-        self.tx_density = tx_density
-        self.RF_power_req = RF_power_req
+    def _base_mass_items(self):
+        return [
+            Component("capture_system_mass", self.m_captureSys, note="should probs do for dif capture types")
+        ]
+
+    
+    
+class AOCS(Subsystem):
+    """
+    Attitude and Orbit Control Subsystem (AOCS)
+
+    """
+    def __init__(self, sc_type:str="complex") -> None:
+        self.sc_type = sc_type
+
+        # list of aocs sensors as per the ones chosen in the midterm report, manually adjust these
+        if self.sc_type == "complex":
+            self.sensors = {
+                # component_name: (qty., approx total mass [kg])
+                "star_tracker": (2, 4),
+                "gyro_unit": (2, 9),
+                "coarse_sun_sensors": (8, 1.7),
+                "fine_sun_sensors": (4, 0.2),
+                "lidar": (2, 30.6),
+                "cameras": (4, 2.1),
+                "gps_receiver": (1, 1.2),  # TODO: shouldn't we have more for redundancy?
+            }
+            self.actuators = {
+                "reaction_wheels": (4, 19.4),
+                "thrusters": (12, 4),
+                "solar_array_devices": (2, 3.3)
+                }
+        else:
+            self.sensors = {
+                "star_tracker": (1, 0.27),  # TODO: wouldn't we always want at least 2 for redundancy?
+                "gyro_unit": (1, 0.06),
+                "sun_sensors": (6, 0.22),
+                "cameras": (2, 0.65),
+            }
+            self.actuators = {
+                "reaction_wheels": (4, 4.4),
+                "thrusters": (8, 3.1),
+                "solar_array_devices": (1, 1.5)
+            }
+
+        self.mass_sum()
+    
+    def mass_sum(self):
+        self.m_aocs_sensors = 0
+        self.m_aocs_actuators = 0
+
+        for sensor in self.sensors:
+            self.m_aocs_sensors += sensor[1]
+        for actuator in self.actuators:
+            self.m_aocs_actuators += actuator[1]
+
         return
     
-    def mass_transponder(self):
-        # low RF powers (up to about 10 W RF power)
-        if self.RF_power_req == "low":
-            return self.tx_RF_power / self.tx_density
-        else:
-            return 
+    def _base_mass_items(self):
+        return [
+            Component("aocs_sensors", self.m_aocs_sensors, note=f"for {self.sc_type} spacecraft"),
+            Component("aocs_actuators", self.m_aocs_actuators, note=f"for {self.sc_type} spacecraft")
+        ]
+    
+class EPS(Subsystem):
+    """
+    Electrical Power System (EPS), includes power generation, storage and handling.
+    Assumes PV system including batteries for default value of specific power
+    """
+    def __init__(self, m_dry):
+        self.m_eps = m_dry * 0.2
+
+    def _base_mass_items(self):
+        return [
+            Component("eps_mass", self.m_eps, note="can definitely be improved, im lazy"),
+        ]
+
+    '''so im being very lazy but (p. 136) in adsee actually goes over this'''
+    # EPS is 20-50% of s/c dry mass (page 131)
+    # power source mass esimtation (page 166)
+
+    # EPS is not necessarily mass dependant, but probably mass related
+    # Could potentially use a statistical relation of power-drymass instead of required power (how will we get this)
+    # def __init__(
+    #     self,
+    #     power_output: float, # [W] continuous required power output of the power system
+    #     specific_power: float = 12, #[W/kg] Photo-voltaic system (incl. batteries) range 7-12 We/kg
+    #     # battery_capacity_kwh: float,
+    #     # solar_power_w: float,
+    #     # solar_cell_efficiency: float,
+    #     #TODO: EXPAND
+    #     ) -> None:
+    #     self.power_output = power_output
+    #     self.specific_power = specific_power
+    #     return
+    
+    # def power_output_mass(self):
+    #     specific_mass = 1 / self.specific_power
+    #     return self.power_output * specific_mass
+
+
+class TTC(Subsystem):
+    def __init__(self, m_dry):
+        # 2% from BASELINE REPORT
+        self.m_ttc = m_dry * 0.02
+
+    def _base_mass_items(self):
+        return [
+            Component("ttc_mass", self.m_ttc, note="can definitely be improved, im lazy"),
+        ]
+    
+    ''' so the complicated explanation is on (p. 220)
+        but i can't be bothered.'''
+    # def __init__(self, tx_RF_power, tx_density, RF_power_req):
+    #     self.tx_RF_power = tx_RF_power
+    #     self.tx_density = tx_density
+    #     self.RF_power_req = RF_power_req
+    #     return
+    
+    # def mass_transponder(self):
+    #     # low RF powers (up to about 10 W RF power)
+    #     if self.RF_power_req == "low":
+    #         return self.tx_RF_power / self.tx_density
+    #     else:
+    #         return 
 
 # harness (wiring, cables, etc) is 3-10% of dry mass (page 143)
 class CDH(Subsystem):
@@ -223,7 +309,7 @@ class CDH(Subsystem):
                 self,
                 n_redundancy: int = 2
     ):
-        self.data_harness_mass = None
+        self.data_harness_mass = None  # TODO: According to [Brown] the harness mass is in range 3-10% of on-orbit dry mass of the spacecraft. (p. 143)
         self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
         self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
         self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
@@ -239,7 +325,3 @@ class CDH(Subsystem):
             Component("ssr_mass", self.n_redundancy * self.ssr_mass),
             Component("rtu_mass", self.n_redundancy * self.rtu_mass),
         ]
-
-    def mass(self):
-        return self.n_redundancy * (self.obc_mass + self.pp_mass + self.ssr_mass + self.rtu_mass)
-
