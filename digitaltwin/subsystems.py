@@ -44,16 +44,16 @@ class Propulsion(Subsystem):
         return 0.178 * m_prop + 7.69
     
     # prop mass for multi-target missions where the s/c has to carry all its prop mass
-    def sequence_prop_mass(self):    
+    def sequence_prop_mass(self, m_dry, n_targets, dv_list, m_debris_list):    
         m_prop = 0
-        for i in range(self.n_targets + 1):
-                m_final = self.m_dry + sum(self.m_debris_list[:(self.n_targets - i)]) + m_prop 
-                m_prop += self.propellant_m(self.dv_list[-(i+1)], self.Isp, m_final)
+        for i in range(n_targets + 1):
+                m_final = m_dry + sum(m_debris_list[:(n_targets - i)]) + m_prop 
+                m_prop += self.propellant_m(dv_list[-(i+1)], self.Isp, m_final)
         return m_prop
     
     # calculating propellant mass and dry mass of propulsion system 
     def prop_mass_multiTarget(self):  # TODO: change the name maybe? naming convention?
-        m_prop, _ = self.sequence_prop_mass(self.m_dry, self.n_targets, self.dv_list, self.m_debris_list)  # initialising our propellant mass estimates
+        m_prop = self.sequence_prop_mass(self.m_dry, self.n_targets, self.dv_list, self.m_debris_list)  # initialising our propellant mass estimates
         m_prop_prev = 0 
         while abs(m_prop - m_prop_prev) > 1:  # convergence condition
                 m_prop_prev = m_prop  # setting the previous estimate so we can compare
@@ -66,7 +66,7 @@ class Propulsion(Subsystem):
     
     def _base_mass_items(self):
         return [
-            Component("propellant_mass", self.m_prop),
+            # Component("propellant_mass", self.m_prop),
             Component("feed_system_mass", self.m_rcs,
                       note="dry mass of propulsion system, all inclusive (not component-wise)")
         ]
@@ -154,7 +154,7 @@ class CaptureSystem(Subsystem):
     # Capture system should be independent of mass, i think?
     def __init__(self, m_dry) -> None:
         # based on the baseline report 30% for capture
-        self.m_captureSys = m_dry * 0.3
+        self.m_captureSys = 620 # m_dry * 0.3
 
     def _base_mass_items(self):
         return [
@@ -209,7 +209,7 @@ class AOCS(Subsystem):
 
         for sensor in self.sensors.values():
             self.m_aocs_sensors += sensor[1]
-        for actuator in self.actuators:
+        for actuator in self.actuators.values():
             self.m_aocs_actuators += actuator[1]
 
         return
@@ -226,7 +226,7 @@ class EPS(Subsystem):
     Assumes PV system including batteries for default value of specific power
     """
     def __init__(self, m_dry):
-        self.m_eps = m_dry * 0.2
+        self.m_eps = 350 # m_dry * 0.2
 
     def _base_mass_items(self):
         return [
@@ -309,7 +309,7 @@ class CDH(Subsystem):
                 self,
                 n_redundancy: int = 2
     ):
-        self.data_harness_mass = None  # TODO: According to [Brown] the harness mass is in range 3-10% of on-orbit dry mass of the spacecraft. (p. 143)
+        self.data_harness_mass = 0  # TODO: According to [Brown] the harness mass is in range 3-10% of on-orbit dry mass of the spacecraft. (p. 143)
         self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
         self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
         self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
