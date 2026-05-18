@@ -152,9 +152,17 @@ class CaptureSystem(Subsystem):
     """
     # i just wanna make this work, we can fix this more later
     # Capture system should be independent of mass, i think?
-    def __init__(self, m_dry) -> None:
+    def __init__(self, capture_type: str) -> None:
         # based on the baseline report 30% for capture
-        self.m_captureSys = 620 # m_dry * 0.3
+        # using random AI numbers <3 
+        capture_masses = {
+            "robotic_manipulator": 200,
+            "gecko_adhesive": 25,
+            "clamp": 50,
+            "payload_adapter": 60,
+            "mev_mechanism": 80
+        }
+        self.m_captureSys = capture_masses[capture_type]
 
     def _base_mass_items(self):
         return [
@@ -225,8 +233,18 @@ class EPS(Subsystem):
     Electrical Power System (EPS), includes power generation, storage and handling.
     Assumes PV system including batteries for default value of specific power
     """
-    def __init__(self, m_dry):
-        self.m_eps = 350 # m_dry * 0.2
+    # using random AI numbers <3
+    def __init__(self, mission_type):
+        eps_masses = {
+            "STR": 150,
+            "MTR": 200,
+            "PSW": 300,
+            "M&T": 750,
+            "ISC": 1000
+        }
+
+        self.m_eps = eps_masses[mission_type]
+
 
     def _base_mass_items(self):
         return [

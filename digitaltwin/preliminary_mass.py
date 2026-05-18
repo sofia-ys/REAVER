@@ -6,8 +6,10 @@ m_debris_list = [1200, 2000, 1800]
 Isp = 220
 sc_type = "complex"
 n_redundancy = 2
+capture_type = "robotic_manipulator"  # choose from: "robotic_manipulator", "gecko_adhesive", "clamp", "payload_adapter", "mev_mechanism"
+mission_type = "STR"  # choose from: "STR", "MTR", "PSW", "M&T", "ISC"
 
-sc = SpaceCraft(n_targets, dv_list, m_debris_list, Isp, sc_type, n_redundancy)
+sc = SpaceCraft(n_targets, dv_list, m_debris_list, Isp, sc_type, n_redundancy, capture_type, mission_type)
 m_dry = sc.mass()
 
 print("------------------------------------------")
