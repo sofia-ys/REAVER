@@ -13,8 +13,10 @@ from spacetrack import SpaceTrackClient
 import spacetrack.operators as op
 from plotting import plot_raan_hist, plot_inclination_hist
 from clustering import cluster
+from dotenv import load_dotenv
 
 # CONFIG
+load_dotenv(Path(__file__).parent.parent / '.env')
 ST_USER = os.environ.get("ST_USER")
 ST_PASS = os.environ.get("ST_PASS")
 ST_BASE = "https://space-track.org/"
@@ -33,7 +35,6 @@ CACHE_DIR           = Path(".cache/satellite_data")
 CACHE_MAX_AGE_HOURS = 24        # Re-fetch if cached file is older than this
 CACHE_COMPRESS      = 3         # joblib compression level (0 = off, 9 = max)
 
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -44,10 +45,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 memory = joblib.Memory(location=CACHE_DIR, verbose=0, compress=CACHE_COMPRESS)
 
-
 def _stamp_path(func_name: str) -> Path:
     return CACHE_DIR / f"{func_name}.timestamp"
-
 
 def _cache_is_fresh(func_name: str) -> bool:
     """Return True if the timestamp file for *func_name* is within CACHE_MAX_AGE_HOURS."""
@@ -62,11 +61,9 @@ def _cache_is_fresh(func_name: str) -> bool:
     log.info("Cache for '%s' is %.1f h old — using cached data.", func_name, age_hours)
     return True
 
-
 def _touch_stamp(func_name: str) -> None:
     """Update the timestamp file to mark the cache as freshly populated."""
     _stamp_path(func_name).touch()
-
 
 def clear_cache():
     """Delete all cached data and timestamps."""
@@ -93,10 +90,9 @@ def fetch_data_startrack() -> pd.DataFrame:
     log.info("SpaceTrack returned %d records.", len(df))
     return df
 
-
 def fetch_data_discos(norad_ids) -> pd.DataFrame:
     URL = "https://discosweb.esoc.esa.int/api/objects"
-    BATCH = 80
+    BATCH = 30
     records = []
 
     log.info("Fetching DISCOSweb data for %d NORAD IDs ...", len(norad_ids))
@@ -119,6 +115,14 @@ def fetch_data_discos(norad_ids) -> pd.DataFrame:
                 "MASS_KG": attrs.get("mass"),
                 "OBJECT_CLASS": attrs.get("objectClass", ""),
                 "SHAPE": attrs.get("shape", ""),
+                "WIDTH": attrs.get("width", ""),
+                "HEIGHT": attrs.get("height", ""),
+                "DEPTH": attrs.get("depth", ""),
+                "DIAMETER": attrs.get("diameter", ""),
+                "xSectMax": attrs.get("xSectMax", ""),
+                "xSectMin": attrs.get("xSectMin", ""),
+                "xSectAvg": attrs.get("xSectAvg", ""),
+                "SPAN": attrs.get("span", ""),
                 "ACTIVE": attrs.get("active", ""),
             })
 
@@ -126,7 +130,6 @@ def fetch_data_discos(norad_ids) -> pd.DataFrame:
     df = df.apply(pd.to_numeric, errors="ignore")
     log.info("DISCOSweb returned %d records.", len(df))
     return df
-
 
 @memory.cache
 def _cached_fetch_startrack() -> pd.DataFrame:
@@ -137,7 +140,6 @@ def _cached_fetch_startrack() -> pd.DataFrame:
 def _cached_fetch_discos(norad_ids_tuple: tuple) -> pd.DataFrame:
     return fetch_data_discos(list(norad_ids_tuple))
 
-
 def get_startrack_data(force_refresh: bool = False) -> pd.DataFrame:
     """Return SpaceTrack data, using cache unless stale or *force_refresh*."""
     if force_refresh or not _cache_is_fresh("startrack"):
@@ -146,7 +148,6 @@ def get_startrack_data(force_refresh: bool = False) -> pd.DataFrame:
         _touch_stamp("startrack")
         return df
     return _cached_fetch_startrack()
-
 
 def get_discos_data(norad_ids, force_refresh: bool = False) -> pd.DataFrame:
     """Return DISCOSweb data, using cache unless stale or *force_refresh*."""
@@ -171,14 +172,12 @@ def get_merged_data(force_refresh: bool = False) -> pd.DataFrame:
 
     return data
 
-
 if __name__ == "__main__":
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     data = get_merged_data(force_refresh=False)
 
     # cluster(data)
-
 
     plot_raan_hist(data)
     plt.show()
