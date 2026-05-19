@@ -27,51 +27,63 @@ class Subsystem():
 
 class Propulsion(Subsystem):
     '''Propulsion, includes tanks'''
-    def __init__(self, m_dry:float, n_targets:int, dv_list:list, m_debris_list:list, Isp:float) -> None:
+    def __init__(self, m_dry_ms, m_dry_t) -> None:
         super().__init__(contingency=0.1)
 
-        self.m_dry = m_dry  # initial guess
-        self.n_targets = n_targets
-        self.dv_list = dv_list
-        self.m_debris_list = m_debris_list
-        self.Isp = Isp
+        self.m_dry_ms = m_dry_ms  # [kg] initial guess for dry mass
+        self.m_dry_t = m_dry_t  # [kg] initial guess for dry mass
 
-        self.prop_mass_multiTarget()  # actually get the values
-    
-    # rocket equation to find prop mass
+        self.Isp_ms = 270  # [s] chemical propulsion for the mothership
+        self.Isp_t = 4200  # [s] electric propulsion for the tug
+        self.dv_ms = [0.306, 0.306, 0.306, 0.306, 0.306, 0.306]  # [km/s] average case dv grand tour
+        self.dv_t = 0.33  # [km/s] average case dv debris -> RH for each tug
+        self.m_debris = 1800  # [kg] mass of the collected debris, assuming all are same (for now)
+
+        self.m_prop_t, self.m_rcs_t = self.find_m_prop(sc_type="tug")  # [kg] prop mass and prop sys dry mass for the tug
+        self.m_wet_t = (self.m_dry_t + self.m_rcs_t) + self.m_prop_t  # [kg] wet mass of the tug (with updated dry mass and corresponding prop mass)
+
+        self.m_prop_ms, self.m_rcs_ms = self.find_m_prop(sc_type="ms")  # [kg] prop mass and prop sys dry mass for the mothership
+
+        
     def propellant_m(self, dv, Isp, m_final):
         return m_final * (np.e**(1000*dv/(Isp * 9.80665)) - 1)
     
-    # Dry mass of a chemical RCS system [p. 166 ADSEE-1222] -- based on prop mass
     def rcs_mass(self, m_prop):
         return 0.178 * m_prop + 7.69
+
+    def tug_m_prop(self, m_dry_t):
+        m_final = m_dry_t + self.m_debris
+        tug_m_prop = self.propellant_m(self.dv_t, self.Isp_t, m_final)
+        return tug_m_prop
     
-    # prop mass for multi-target missions where the s/c has to carry all its prop mass
-    def sequence_prop_mass(self, m_dry, n_targets, dv_list, m_debris_list):    
+    def ms_m_prop(self, m_dry_ms):
         m_prop = 0
-        for i in range(n_targets + 1):
-                m_final = m_dry + sum(m_debris_list[:(n_targets - i)]) + m_prop 
-                m_prop += self.propellant_m(dv_list[-(i+1)], self.Isp, m_final)
+        for i in range(len(self.dv_ms)):  # number of manouevres
+            m_final = m_dry_ms + (i - 1) * self.m_wet_t + m_prop
+            if i == 0:
+                m_final += self.m_debris + self.m_wet_t  # for the last manouevre, the mothership also carries the last debris
+            m_prop += self.propellant_m(self.dv_ms[-(i+1)], self.Isp_ms, m_final)
         return m_prop
     
-    # calculating propellant mass and dry mass of propulsion system 
-    def prop_mass_multiTarget(self):  # TODO: change the name maybe? naming convention?
-        m_prop = self.sequence_prop_mass(self.m_dry, self.n_targets, self.dv_list, self.m_debris_list)  # initialising our propellant mass estimates
+    def find_m_prop(self, sc_type):
+        m_prop = self.ms_m_prop(self.m_dry_ms) if sc_type=="ms" else self.tug_m_prop(self.m_dry_t)  # initialising our propellant mass estimates
         m_prop_prev = 0 
         while abs(m_prop - m_prop_prev) > 1:  # convergence condition
-                m_prop_prev = m_prop  # setting the previous estimate so we can compare
-                m_prop = self.sequence_prop_mass(self.m_dry + self.rcs_mass(m_prop), self.n_targets, self.dv_list, self.m_debris_list)
+            m_prop_prev = m_prop  # setting the previous estimate so we can compare
+            m_prop = self.ms_m_prop(self.m_dry_ms + self.rcs_mass(m_prop)) if sc_type=="ms" else self.tug_m_prop(self.m_dry_t + self.rcs_mass(m_prop))
         m_rcs = self.rcs_mass(m_prop)
+        return m_prop, m_rcs
 
-        # saving the values we want into our class
-        self.m_prop = m_prop 
-        self.m_rcs = m_rcs
-    
     def _base_mass_items(self):
         return [
-            # Component("propellant_mass", self.m_prop),
-            Component("feed_system_mass", self.m_rcs,
-                      note="dry mass of propulsion system, all inclusive (not component-wise)")
+            Component("tug_rcs_mass", self.m_rcs_t),
+            Component("mothership_rcs_mass", self.m_rcs_ms)
+        ]
+    
+    def propellant_mass(self):
+        return [
+            Component("tug_propellant_mass", self.m_prop_t),
+            Component("mothership_propellant_mass", self.m_prop_ms)
         ]
 
 
