@@ -8,16 +8,16 @@ def _apply_contingency(base_mass: float, contingency: float) -> float:
     return base_mass * (1.0 + contingency)
 
 class Subsystem():
-    DEFAULT_CONTINGENCY = 0.20
 
     def __init__(self, contingency: Optional[float] = None) -> None:
+        self.DEFAULT_CONTINGENCY = 0.2 
         self.contingency = contingency if contingency is not None else self.DEFAULT_CONTINGENCY
         return
 
     def mass(self) -> float:
         """Total subsystem mass -- not including yet contingency [kg]."""
-        m_subsystem = sum(item.mass_kg for item in self._base_mass_items())
-        return m_subsystem # _apply_contingency(base, self.contingency)
+        base = sum(item.mass_kg for item in self._base_mass_items())
+        return _apply_contingency(base, self.contingency)  # m_subsystem 
 
 
 #==================================================================
@@ -27,6 +27,8 @@ class Subsystem():
 # example mass budgets: page 82 table 20, page 83 table 22
 class Propulsion(Subsystem):
     def __init__(self, m_dry:float, n_targets:int, dv_list:list, m_debris_list:list, Isp:float) -> None:
+        super().__init__(contingency=0.1)
+
         self.m_dry = m_dry  # initial guess
         self.n_targets = n_targets
         self.dv_list = dv_list
@@ -77,6 +79,7 @@ class Structures(Subsystem):
     # dry mass range 50-1750 kg, mass of the structures (and mechanisms) system is roughly about 20 25% of the dry mass with a relative standard error of 21.7% (p. 104)
     # BASELINE REPORT USES 25% hence that value is taken
     def __init__(self, m_dry):
+        super().__init__()
         self.m_structures = 0.25 * m_dry
 
     def _base_mass_items(self):
@@ -90,6 +93,7 @@ class TCS(Subsystem):
     '''Thermal Control System (TCS) -- preliminary estimate'''
     # taking 3% of dry mass being TCS (from baseline report)
     def __init__(self, m_dry):
+        super().__init__(contingency=0.1)
         self.m_tcs = 0.03 * m_dry
 
     def _base_mass_items(self):
@@ -153,6 +157,7 @@ class CaptureSystem(Subsystem):
     # i just wanna make this work, we can fix this more later
     # Capture system should be independent of mass, i think?
     def __init__(self, capture_type: str) -> None:
+        super().__init__()
         # based on the baseline report 30% for capture
         # using random AI numbers <3 
         capture_masses = {
@@ -177,6 +182,7 @@ class AOCS(Subsystem):
 
     """
     def __init__(self, sc_type:str="complex") -> None:
+        super().__init__(contingency=0.1)        
         self.sc_type = sc_type
 
         # list of aocs sensors as per the ones chosen in the midterm report, manually adjust these
@@ -233,8 +239,10 @@ class EPS(Subsystem):
     Electrical Power System (EPS), includes power generation, storage and handling.
     Assumes PV system including batteries for default value of specific power
     """
+
     # using random AI numbers <3
     def __init__(self, mission_type):
+        super().__init__(contingency=0.2)  # if full solar array sizing -- contingency = 10
         eps_masses = {
             "STR": 150,
             "MTR": 200,
@@ -277,6 +285,7 @@ class EPS(Subsystem):
 
 class TTC(Subsystem):
     def __init__(self, m_dry):
+        super().__init__(contingency=0.1)
         # 2% from BASELINE REPORT
         self.m_ttc = m_dry * 0.02
 
@@ -323,10 +332,9 @@ class CDH(Subsystem):
 
     # newspace (all in one): https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
 
-    def __init__(
-                self,
-                n_redundancy: int = 2
-    ):
+    def __init__(self, n_redundancy: int = 2):
+        super().__init__(contingency=0.1)
+
         self.data_harness_mass = 0  # TODO: According to [Brown] the harness mass is in range 3-10% of on-orbit dry mass of the spacecraft. (p. 143)
         self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
         self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
