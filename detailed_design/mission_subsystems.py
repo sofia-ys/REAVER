@@ -33,6 +33,7 @@ class Propulsion(Subsystem):
         self.m_dry = m_dry  # [kg] initial guess for dry mass
 
         self.m_debris = 1800  # [kg] mass of the collected debris, assuming all are same (for now)
+        self.power = None
 
         if sc_type == "ms":
             self.Isp_ms = 253  # [s] chemical propulsion for the mothership
@@ -43,6 +44,30 @@ class Propulsion(Subsystem):
             self.Isp_t = 4220  # [s] electric propulsion for the tug
             self.dv_t = 1.22  # [km/s] average case dv debris -> RH for each tug
             self.m_prop_t, self.m_rcs_t = self.find_m_prop(sc_type="tug")  # [kg] prop mass and prop sys dry mass for the tug
+            thrust = self.calculate_thrust(burn_duration_days=230) #230 days for tug
+            self.power = self.calculate_power(thrust)
+
+    def calculate_thrust(self, burn_duration_days):
+        """
+        Calculate the thrust required based off of propellant mass and burn duration
+        m_dot = m_prop / t_b
+        v_e = Isp * g0
+        dp = v_e*dm
+        F = dp/dt = m_dot * v_e
+        """
+        t_b = burn_duration_days * 24 * 60 * 60  # [s]
+        if not self.m_prop_t:
+            raise ValueError('Propellant mass is not defined')
+
+        return (self.m_prop_t / t_b) * self.Isp_t * 9.80665
+
+    def calculate_power(self, thrust, prop_efficiency=0.7):
+        """
+        Calculate the electric power required by propulsion system, using propulsion system efficiency.
+        Default value of efficiency is 0.7 based off of NEXT-C thruster
+        """
+        self.power = (thrust * self.Isp_t * 9.80665) / (2 * prop_efficiency)
+        return self.power
 
     def propellant_m(self, dv, Isp, m_final):
         return m_final * (np.e**(1000*dv/(Isp * 9.80665)) - 1)
@@ -94,34 +119,35 @@ class AOCS(Subsystem):
         # list of aocs sensors as per the ones chosen in the midterm report, manually adjust these
         if self.sc_type == "ms":
             self.sensors = {
-                # component_name: (qty., approx total mass [kg])
-                "star_tracker": (2, 4),
-                "gyro_unit": (2, 9),
-                "coarse_sun_sensors": (8, 1.7),
-                "fine_sun_sensors": (4, 0.2),
-                "lidar": (2, 30.6),
-                "cameras": (4, 2.1),
-                "gps_receiver": (1, 1.2),  # TODO: shouldn't we have more for redundancy?
+                # component_name: (qty., approx total mass [kg], approx power [W])
+                "star_tracker": (2, 4, 12),
+                "gyro_unit": (2, 9, 27),
+                "coarse_sun_sensors": (8, 1.7, 0),
+                "fine_sun_sensors": (4, 0.2, 0),
+                "lidar": (2, 30.6, 160),
+                "cameras": (4, 2.1, 8),
+                "gps_receiver": (1, 1.2, 8),  # TODO: shouldn't we have more for redundancy?
             }
             self.actuators = {
-                "reaction_wheels": (4, 19.4),
-                "thrusters": (12, 4),
-                "solar_array_devices": (2, 3.3)
-                }
+                "reaction_wheels": (4, 19.4, 80), #TODO: Check, says 80 ss in report, steady-state?
+                "thrusters": (12, 4, 0), #TODO: POWER TBD
+                "solar_array_devices": (2, 3.3, 0) #TODO: POWER TBD
+            }
         else:  # sc_type == "tug"
             self.sensors = {
-                "star_tracker": (1, 0.27),  # TODO: wouldn't we always want at least 2 for redundancy?
-                "gyro_unit": (1, 0.06),
-                "sun_sensors": (6, 0.22),
-                "cameras": (2, 0.65),
+                "star_tracker": (1, 0.27, 1.5),  # TODO: wouldn't we always want at least 2 for redundancy?
+                "gyro_unit": (1, 0.06, 1.5),
+                "sun_sensors": (6, 0.22, 0.9),
+                "cameras": (2, 0.65, 3.6),
             }
             self.actuators = {
-                "reaction_wheels": (4, 4.4),
-                "thrusters": (8, 3.1),
-                "solar_array_devices": (1, 1.5)
+                "reaction_wheels": (4, 4.4, 56),  # range 16-56, chose upper limit
+                "thrusters": (8, 3.1, 0),  # TODO: POWER TBD
+                "solar_array_devices": (1, 1.5, 0)  # TODO: POWER TBD
             }
 
         self.mass_sum()
+        self.power_sum()
     
     def mass_sum(self):
         self.m_aocs_sensors = 0
@@ -133,6 +159,17 @@ class AOCS(Subsystem):
             self.m_aocs_actuators += actuator[1]
 
         return
+    def power_sum(self):
+        self.power_aocs_sensors = 0
+        self.power_aocs_actuators = 0
+
+        for sensor in self.sensors.values():
+            self.power_aocs_sensors += sensor[2]
+        for actuator in self.actuators.values():
+            self.power_aocs_actuators += actuator[2]
+
+        return
+
     
     def _base_mass_items(self):
         return [
@@ -163,14 +200,47 @@ class CaptureSystem(Subsystem):
     
 class EPS(Subsystem):
     '''Electrical Power System (EPS), includes power generation, storage and handling'''
-    def __init__(self, sc_type):
+    def __init__(self, sc_type, prop_power: Optional = None):
         super().__init__(contingency=0.2)  # if full solar array sizing -- contingency = 10
         
-        # using random AI numbers <3 
         if sc_type == "ms":
-            self.m_eps = 120  # [kg]
+            self.P_eps = 2000 # W, from baseline report (probably needs to be revised)
+            # self.m_eps = 120  # [kg]
         else:  # for the tug, since it uses electric propulsion
-            self.m_eps = 40  # [kg]
+            # self.m_eps = 40  # [kg]
+            self.P_eps = prop_power + 300 # Just prop power for now with 300W for everything else
+
+        self.m_eps = self.solar_array_sizing() + self.battery_sizing() + self.pmd_sizing()
+        self.m_eps = self.m_eps + self.harness_sizing()
+
+    def solar_array_sizing(self):
+        """ Solar array sizing (page 132 from ADSEE AE1222 reader pdf)"""
+        lifetime = 1 # Lifetime is one year
+        eff_d = 0.8
+        degradation_factor = 0.01
+        p_d = self.P_eps
+
+        p_sa_bol = p_d / eff_d  # Eclipse (or nighttime efficiency is ignored for now) P_e / eff_e * t_e/t_d
+        p_sa_eol = p_sa_bol * (1 - degradation_factor)**lifetime
+        p_sp_sa = 120 # W/kg
+        p_delta_sa = 5 # m^2/kg
+        m_sa = p_sa_eol / p_sp_sa
+        a_sa = p_sa_eol / p_delta_sa
+        return m_sa
+
+    def battery_sizing(self):
+        """ Assume no battery for now, because no ecplise. Although it is probably relevant for peak power"""
+        m_bat = 0
+        return m_bat
+
+    def pmd_sizing(self):
+        m_pmd = 0.071 * self.P_eps * 0.15 # kg
+        return m_pmd
+
+    def harness_sizing(self):
+        # m_har = 0.03 * self.m_eps # 3-10% of on-orbit dry mass (ADSEE reader)
+        m_har = 0.25 * self.m_eps # 3-10% of on-orbit dry mass (ADSEE reader)
+        return m_har
 
     def _base_mass_items(self):
         return [
@@ -188,7 +258,6 @@ class CDH(Subsystem):
     def __init__(self):
         super().__init__(contingency=0.1)
 
-        self.data_harness_mass = 0  # TODO: According to [Brown] the harness mass is in range 3-10% of on-orbit dry mass of the spacecraft. (p. 143)
         self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
         self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
         self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
