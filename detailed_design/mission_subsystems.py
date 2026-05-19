@@ -253,24 +253,26 @@ class CDH(Subsystem):
         - payload processor (pp): processing of vbn and robotics
         - remote terminal unit (rtu)
         - solid-state recorder
-        - data harness'''
+        - harness is included in EPS
+        '''
 
-    def __init__(self):
+    def __init__(self, sc_type):
         super().__init__(contingency=0.1)
 
-        self.obc_mass   = 5.4   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
-        self.pp_mass    = 3.6   # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
-        self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
-        self.rtu_mass   = 17    # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2023-11/Remote-Terminal-Unit.PDF
-        self.n_redundancy = 2  # TODO: verify how much redundnacy we want
+        if sc_type == "ms":
+            self.obc_mass   = 5.4   # [kg] dual-redundant https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
+            self.pp_mass    = 7.6   # [kg] dual-redundant https://www.beyondgravity.com/sites/default/files/media_document/2026-02/Satellites_FoX_Payload_Processor_Datasheet.pdf
+            self.ssr_mass   = 0.75 * 2 # [kg] two units https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
+            self.rtu_mass   = 17.0    # [kg] redundant https://www.beyondgravity.com/sites/default/files/media_document/2023-11/Remote-Terminal-Unit.PDF
+            self.n_redundancy = 1  # most components have redundancy built-in
+            self.m_cdh = self.n_redundancy * (self.obc_mass, self.pp_mass, self.ssr_mass) + self.rtu_mass
+        else:
+            self.m_cdh = 5.4 # kg already dual-redundant, https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
+        return
 
     def _base_mass_items(self):
         return [
-            Component("data_harness_mass", self.data_harness_mass), #TODO should data harness scale with redundancy?
-            Component("obc_mass", self.n_redundancy * self.obc_mass),
-            Component("pp_mass", self.n_redundancy * self.pp_mass),
-            Component("ssr_mass", self.n_redundancy * self.ssr_mass),
-            Component("rtu_mass", self.n_redundancy * self.rtu_mass),
+            Component("m_cdh", self.m_cdh)
         ]
 
 ###########################################
