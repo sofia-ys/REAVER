@@ -265,7 +265,7 @@ class CDH(Subsystem):
             self.ssr_mass   = 0.75 * 2 # [kg] two units https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
             self.rtu_mass   = 17.0    # [kg] redundant https://www.beyondgravity.com/sites/default/files/media_document/2023-11/Remote-Terminal-Unit.PDF
             self.n_redundancy = 1  # most components have redundancy built-in
-            self.m_cdh = self.n_redundancy * (self.obc_mass, self.pp_mass, self.ssr_mass) + self.rtu_mass
+            self.m_cdh = self.n_redundancy * (self.obc_mass + self.pp_mass + self.ssr_mass) + self.rtu_mass
         else:
             self.m_cdh = 5.4 # kg already dual-redundant, https://www.beyondgravity.com/sites/default/files/media_document/2026-02/cOBC_fact_sheet_2026-01-27.pdf
         return

@@ -20,7 +20,7 @@ class SpaceCraft:
         self.capture_system = CaptureSystem(self.sc_type)
         self.m_capture_system = self.capture_system.mass()
 
-        self.cdh = CDH()
+        self.cdh = CDH(self.sc_type)
         self.m_cdh = self.cdh.mass()
 
         self.dry_mass()
