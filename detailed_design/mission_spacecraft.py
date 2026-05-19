@@ -8,15 +8,17 @@ class SpaceCraft:
         if self.sc_type == "ms":
             self.m_wet_t = m_wet_t
 
+            self.eps = EPS(self.sc_type)
+            self.m_eps = self.eps.mass()
+        else:
+            self.m_eps = 0  # still undefined for the tug so we keep it at this value
+
         # dry mass independent subsystems
         self.aocs = AOCS(self.sc_type)
         self.m_aocs = self.aocs.mass()
 
         self.capture_system = CaptureSystem(self.sc_type)
         self.m_capture_system = self.capture_system.mass()
-
-        self.eps = EPS(self.sc_type)
-        self.m_eps = self.eps.mass()
 
         self.cdh = CDH()
         self.m_cdh = self.cdh.mass()
@@ -34,8 +36,13 @@ class SpaceCraft:
 
             if self.sc_type == "ms":
                 propulsion = Propulsion(m_dry, self.sc_type, m_wet_t=self.m_wet_t) 
+                m_eps = 0  # we don't update the m_eps if we have ms since it's just fixed 
             else:
                 propulsion = Propulsion(m_dry, self.sc_type) 
+                prop_power = propulsion.power
+                eps = EPS(self.sc_type, prop_power)
+                m_eps = eps.mass()  # if we have the tug we actually do iterate this m_eps value
+            
             structures = Structures(m_dry)
             tcs = TCS(m_dry)
             ttc = TTC(m_dry)
@@ -44,8 +51,8 @@ class SpaceCraft:
             m_structures = structures.mass()
             m_tcs = tcs.mass()
             m_ttc = ttc.mass()
-
-            m_dry = (self.m_aocs + self.m_cdh + self.m_capture_system + self.m_eps) + m_propulsion + m_structures + m_tcs + m_ttc
+            
+            m_dry = self.m_aocs + self.m_cdh + self.m_capture_system + self.m_eps + m_eps + m_propulsion + m_structures + m_tcs + m_ttc  # for tug cause self.m_eps is always 0 and the other updates, and opposite for mothership
 
         if self.sc_type == "ms":
             self.propulsion = Propulsion(m_dry, self.sc_type, m_wet_t=self.m_wet_t) 

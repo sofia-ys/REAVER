@@ -200,7 +200,7 @@ class CaptureSystem(Subsystem):
     
 class EPS(Subsystem):
     '''Electrical Power System (EPS), includes power generation, storage and handling'''
-    def __init__(self, sc_type, prop_power: Optional = None):
+    def __init__(self, sc_type, prop_power: Optional[float] = None):
         super().__init__(contingency=0.2)  # if full solar array sizing -- contingency = 10
         
         if sc_type == "ms":
@@ -263,7 +263,6 @@ class CDH(Subsystem):
         self.ssr_mass   = 0.75  # [kg] https://www.satnow.com/search/solid-state-recorders/filters?page=1&country=global&sorbit=;GEO;
         self.rtu_mass   = 17    # [kg] https://www.beyondgravity.com/sites/default/files/media_document/2023-11/Remote-Terminal-Unit.PDF
         self.n_redundancy = 2  # TODO: verify how much redundnacy we want
-        return
 
     def _base_mass_items(self):
         return [
