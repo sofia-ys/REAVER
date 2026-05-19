@@ -107,7 +107,7 @@ print(dv_tot)  # dv of each manuevre taking the optimal path
 '''NUMBER AND MASS OF DRONES'''
 
 # PROPELLANT TYPES
-Isp = 220 # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
+Isp = 250 # [s] LMP-103S [https://ntrs.nasa.gov/api/citations/20140002595/downloads/20140002595.pdf]
 # Isp = 261 # [s] ASCENT [https://digitalcommons.usu.edu/cgi/viewcontent.cgi?article=5280&context=smallsat]
 
 
@@ -143,12 +143,16 @@ def prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list):
 
 print("-----------------ONE TARGET-----------------")
 n_targets = 1
-dv_list = [0.5196472774421069, 0.5196472774421069]
+isp = 253
+dv_list = [0.025, 0.025]
 m_drone = 152
 m_dry = m_drone * n_drones
 m_prop = prop_mass_multiTarget_iteration(m_dry, n_targets, dv_list)
 m_frac = (m_prop/12) / ((m_dry/12) + (m_prop/12))
 print(m_prop, m_prop/12, m_frac)
+
+print("=========================")
+print(f"PROPELLANT MASS: {m_prop}")
 
 import matplotlib.pyplot as plt
 m_drone_range = range(250)
@@ -161,9 +165,9 @@ for m_drone in m_drone_range:
 
 # print(np.where([frac < 50 for frac in m_frac_list]))
 
-plt.plot(m_drone_range, m_frac_list)
-plt.xlabel("Individual Drone Dry Mass [kg]")
-plt.ylabel("Propellant Mass Fraction [%]")
-plt.plot([0, 250],[50, 50], linestyle='dashed')
-plt.plot([215, 215],[40, 100], linestyle='dashed')
-plt.show()
+# plt.plot(m_drone_range, m_frac_list)
+# plt.xlabel("Individual Drone Dry Mass [kg]")
+# plt.ylabel("Propellant Mass Fraction [%]")
+# plt.plot([0, 250],[50, 50], linestyle='dashed')
+# plt.plot([215, 215],[40, 100], linestyle='dashed')
+# plt.show()

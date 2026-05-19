@@ -62,7 +62,7 @@ class SpaceCraft:
         self.m_ttc = self.ttc.mass()
         self.m_dry = m_dry
 
-        return m_dry * (1 + self.contingency)
+        return m_dry # * (1 + self.contingency)
 
     def mass_breakdown(self):
         self.m_aocs_percent = self.m_aocs/self.m_dry

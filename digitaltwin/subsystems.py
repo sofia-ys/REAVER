@@ -17,7 +17,7 @@ class Subsystem():
     def mass(self) -> float:
         """Total subsystem mass -- not including yet contingency [kg]."""
         base = sum(item.mass_kg for item in self._base_mass_items())
-        return _apply_contingency(base, self.contingency)  # m_subsystem 
+        return base # _apply_contingency(base, self.contingency)
 
 
 #==================================================================

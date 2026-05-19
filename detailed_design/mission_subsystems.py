@@ -35,13 +35,13 @@ class Propulsion(Subsystem):
         self.m_debris = 1800  # [kg] mass of the collected debris, assuming all are same (for now)
 
         if sc_type == "ms":
-            self.Isp_ms = 270  # [s] chemical propulsion for the mothership
+            self.Isp_ms = 253  # [s] chemical propulsion for the mothership
             self.dv_ms = [0.306, 0.306, 0.306, 0.306, 0.306, 0.306]  # [km/s] average case dv grand tour
             self.m_wet_t = m_wet_t  # we take a fixed value for the tug wet mass so we can use it, but we don't iterate it
             self.m_prop_ms, self.m_rcs_ms = self.find_m_prop(sc_type="ms")  # [kg] prop mass and prop sys dry mass for the mothership
         else:  # values we use for the tug
-            self.Isp_t = 4200  # [s] electric propulsion for the tug
-            self.dv_t = 0.76 * 1.6  # [km/s] average case dv debris -> RH for each tug
+            self.Isp_t = 4220  # [s] electric propulsion for the tug
+            self.dv_t = 1.22  # [km/s] average case dv debris -> RH for each tug
             self.m_prop_t, self.m_rcs_t = self.find_m_prop(sc_type="tug")  # [kg] prop mass and prop sys dry mass for the tug
 
     def propellant_m(self, dv, Isp, m_final):

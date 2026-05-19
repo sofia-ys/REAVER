@@ -9,7 +9,7 @@ print(f"TUG: {tug.m_dry}")
 print(f"MOTHERSHIP: {mothership.m_dry}")
 
 print("============================PROPELLANT MASS============================")
-print(f"TUG: {tug.m_prop}")
+print(f"TUG: {tug.m_prop * 5}")
 print(f"MOTHERSHIP: {mothership.m_prop}")
 
 print("==============================TOTAL MASS==============================")
