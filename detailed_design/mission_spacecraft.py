@@ -58,6 +58,9 @@ class SpaceCraft:
             self.propulsion = Propulsion(m_dry, self.sc_type, m_wet_t=self.m_wet_t) 
         else:  # for the tug
             self.propulsion = Propulsion(m_dry, self.sc_type)
+            self.prop_power = propulsion.power
+            self.eps = EPS(self.sc_type, self.prop_power)
+            self.m_eps = self.eps.mass()
         self.structures = Structures(m_dry)
         self.tcs = TCS(m_dry)
         self.ttc = TTC(m_dry)
@@ -66,8 +69,9 @@ class SpaceCraft:
         self.m_structures = self.structures.mass()
         self.m_tcs = self.tcs.mass()
         self.m_ttc = self.ttc.mass()
-        self.m_dry = m_dry
 
+        m_dry = self.m_aocs + self.m_cdh + self.m_capture_system + self.m_eps + self.m_propulsion + self.m_structures + self.m_tcs + self.m_ttc
+        self.m_dry = m_dry
         return m_dry 
     
     def prop_mass(self):
@@ -83,7 +87,8 @@ class SpaceCraft:
             "mass_capture_system": self.m_capture_system,
             "mass_eps": self.m_eps,
             "mass_cdh": self.m_cdh,
-            "mass_propulsion": self.m_prop,
+            "mass_propulsion": self.m_propulsion,
+            "mass_propellant": self.m_prop,
             "mass_structures": self.m_structures,
             "mass_tcs": self.m_tcs,
             "mass_ttc": self.m_ttc
