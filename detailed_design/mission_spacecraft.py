@@ -69,3 +69,15 @@ class SpaceCraft:
 
         self.m_prop = m_prop
         return m_prop
+
+    def mass_breakdown(self):
+        return {
+            "mass_aocs": self.m_aocs,
+            "mass_capture_system": self.m_capture_system,
+            "mass_eps": self.m_eps,
+            "mass_cdh": self.m_cdh,
+            "mass_propulsion": self.m_prop,
+            "mass_structures": self.m_structures,
+            "mass_tcs": self.m_tcs,
+            "mass_ttc": self.m_ttc
+        }
