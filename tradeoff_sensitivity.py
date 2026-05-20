@@ -2,6 +2,15 @@ import numpy as np
 import itertools as it
 import matplotlib.pyplot as plt
 
+'''HOW TO USE
+    1) adjust the criteria_input with your different criteria and their current weights
+    2) adjust the mission_scores_input with the score each mission receives for each criteria
+    RUN THE CODE!
+    the sensitivity analysis basically varies the weights for all possible values with 5% increments with min weight of 10, and max weight dont worry about it (it's 
+    max weight possible where every other criteria has a weight of 10)
+    it then shows you the number of times each mission won for each weight variation
+    then graphs it'''
+
 # adjust this as needed
 criteria_input = {
     "cost": 0.25,
@@ -26,14 +35,11 @@ mission_scores = np.array(list(mission_scores_input.values()))  # type specified
 def calculate_score(criteria, mission_scores):
     scores = mission_scores @ criteria
     winner = np.argmax(scores) + 1
-    return scores, winner
+    return winner
 # print(calculate_score(criteria, mission_scores))
 
-
-delta_weight = np.arange(-0.1, 0.11, 0.05)
-print(delta_weight)
-
-
+# delta_weight = np.arange(-0.1, 0.11, 0.05)
+# print(delta_weight)
 
 def bar_chart_analysis(criteria, mission_scores):
     # getting all possibel weight combinations
@@ -44,40 +50,18 @@ def bar_chart_analysis(criteria, mission_scores):
         if sum(weights) == 100:
             possible_weights.append(weights)
 
-    possible_scores = np.empty((len(possible_weights), len(criteria)))
     possible_winners = []
-    for i, weight in enumerate(possible_weights): 
+    for weight in possible_weights: 
         weight_array = np.array(weight).reshape(-1, 1) / 100
-
-        scores, winner = calculate_score(weight_array, mission_scores) 
-        possible_scores[i] = scores.ravel()
+        winner = calculate_score(weight_array, mission_scores) 
         possible_winners.append(winner)
 
     winner_count = np.bincount(possible_winners, minlength=len(mission_scores_input) + 1)[1:]
-
-    scores_distribution = []
-    for i in range(len(criteria)):
-        scores_distribution.append(
-            sum(possible_scores[:, i])
-        )
-
-    bins = range(1, len(criteria_input) + 1)
-    # plt.bar(bins, scores_distribution)
-    # plt.show()
-
-    fig, ax1 = plt.subplots()
-
-    # ax1.bar(bins, scores_distribution, alpha=0.5)
-    ax1.set_xlabel("Mission")
-    # ax1.set_ylabel("Cummulative score across all weight combinations")
-
-    ax2 = ax1.twinx()
-    ax2.bar(bins, winner_count)
-    ax2.set_ylabel("Number of wins")
-
-    plt.xticks(bins)
-    plt.title("Sensitivity Analysis")
+    
+    plt.bar(['Mission 1', 'Mission 2', 'Mission 3', 'Mission 4', 'Mission 5'], winner_count/sum(winner_count))
+    plt.ylabel("Proportion of wins")
+    plt.ylim(0, 1)
     plt.show()
-    return scores_distribution, winner_count
+    return winner_count
 
-# bar_chart_analysis(criteria, mission_scores)
+bar_chart_analysis(criteria, mission_scores)

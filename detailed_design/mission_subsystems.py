@@ -41,8 +41,8 @@ class Propulsion(Subsystem):
             self.m_wet_t = m_wet_t  # we take a fixed value for the tug wet mass so we can use it, but we don't iterate it
             self.m_prop_ms, self.m_rcs_ms = self.find_m_prop(sc_type="ms")  # [kg] prop mass and prop sys dry mass for the mothership
         else:  # values we use for the tug
-            self.Isp_t = 4220  # [s] electric propulsion for the tug
-            self.dv_t = 1.22  # [km/s] average case dv debris -> RH for each tug
+            self.Isp_t = 1660  # [s] electric propulsion for the tug
+            self.dv_t = 0.52  # [km/s] average case dv debris -> RH for each tug
             self.m_prop_t, self.m_rcs_t = self.find_m_prop(sc_type="tug")  # [kg] prop mass and prop sys dry mass for the tug
             thrust = self.calculate_thrust(burn_duration_days=230) #230 days for tug
             self.power = self.calculate_power(thrust)
@@ -80,6 +80,7 @@ class Propulsion(Subsystem):
         tug_m_prop = self.propellant_m(self.dv_t, self.Isp_t, m_final)
         return tug_m_prop
     
+    '''FOR FOUR TUGS (MS GOES BACK WITH DEBRIS)'''
     def ms_m_prop(self, m_dry_ms):
         m_prop = 0
         for i in range(len(self.dv_ms)):  # number of manouevres
@@ -88,6 +89,14 @@ class Propulsion(Subsystem):
                 m_final += self.m_debris + self.m_wet_t  # for the last manouevre, the mothership also carries the last debris
             m_prop += self.propellant_m(self.dv_ms[-(i+1)], self.Isp_ms, m_final)
         return m_prop
+    
+    '''FOR FIVE TUGS (MS GOES BACK ALONE)'''
+    # def ms_m_prop(self, m_dry_ms):
+    #     m_prop = 0
+    #     for i in range(len(self.dv_ms)):  # number of manouevres
+    #         m_final = m_dry_ms + i * self.m_wet_t + m_prop
+    #         m_prop += self.propellant_m(self.dv_ms[-(i+1)], self.Isp_ms, m_final)
+    #     return m_prop
     
     def find_m_prop(self, sc_type):
         m_prop = self.ms_m_prop(self.m_dry) if sc_type=="ms" else self.tug_m_prop(self.m_dry)  # initialising our propellant mass estimates

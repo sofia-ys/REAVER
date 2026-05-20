@@ -6,12 +6,12 @@ mothership = SpaceCraft(sc_type="ms", m_wet_t=tug_wet_mass)
 
 print("===============================DRY MASS===============================")
 print(f"EACH TUG: {tug.m_dry}")
-print(f"ALL TUGS: {4 * tug.m_dry}")
+print(f"ALL TUGS (4x): {4 * tug.m_dry}")
 print(f"MOTHERSHIP: {mothership.m_dry}")
 
 print("============================PROPELLANT MASS============================")
 print(f"EACH TUG: {tug.m_prop}")
-print(f"ALL TUGS: {4 * tug.m_prop}")
+print(f"ALL TUGS (4x): {4 * tug.m_prop}")
 print(f"MOTHERSHIP: {mothership.m_prop}")
 
 print("==============================TOTAL MASS==============================")
