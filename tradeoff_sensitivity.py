@@ -13,22 +13,20 @@ import matplotlib.pyplot as plt
 
 # adjust this as needed
 criteria_input = {
-    "cost": 0.25,
-    "complexity": 0.20,
-    "schedule": 0.20,
-    "redundancy": 0.10,
-    "risk": 0.25
+    "team_preference": 0.4,
+    "technical_originiality": 0.25,
+    "future_potential": 0.35
 }
 criteria = np.array(list(criteria_input.values())).reshape(-1, 1) 
 
 # here you put in the scores for each category (in order of the criteria)
 # if it's in excel, just copy paste this and your table into chat and ask it to write it out
 mission_scores_input = {
-    "mission1": [4, 5, 4, 1, 2],
-    "mission2": [3, 2, 3, 1, 1],
-    "mission3": [1, 1, 3, 5, 5],
-    "mission4": [2, 2, 2, 4, 3],
-    "mission5": [2, 4, 3, 5, 4]
+    "STR": [1, 2, 3],
+    "MTR": [1, 3, 4],
+    "PSW": [1, 4, 4],
+    "M&T": [5, 4, 4],
+    "ISC": [1, 2, 3]
 }
 mission_scores = np.array(list(mission_scores_input.values()))  # type specified so no matrix multiplication issues later
 
@@ -58,9 +56,11 @@ def bar_chart_analysis(criteria, mission_scores):
 
     winner_count = np.bincount(possible_winners, minlength=len(mission_scores_input) + 1)[1:]
     
-    plt.bar(['Mission 1', 'Mission 2', 'Mission 3', 'Mission 4', 'Mission 5'], winner_count/sum(winner_count))
+    plt.bar(['STR', 'MTR', 'PSW', 'M&T', 'ISC'], winner_count/sum(winner_count))
     plt.ylabel("Proportion of wins")
-    plt.ylim(0, 1)
+    plt.xlabel("Mission concept")
+    plt.title("Innovation sensitivity analysis")
+    plt.ylim(0, 1.1)
     plt.show()
     return winner_count
 
