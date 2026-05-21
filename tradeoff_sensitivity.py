@@ -13,22 +13,22 @@ import matplotlib.pyplot as plt
 
 # adjust this as needed
 criteria_input = {
-    "lca": 0.3,
-    "collision": 0.45,
-    "prop": 0.25
+    "time": 0.4,
+    "equivalent_mass": 0.6
 }
 criteria = np.array(list(criteria_input.values())).reshape(-1, 1) 
 
 # here you put in the scores for each category (in order of the criteria)
 # if it's in excel, just copy paste this and your table into chat and ask it to write it out
 mission_scores_input = {
-    "STR": [3, 4, 2],
-    "MTR": [4, 3, 2],
-    "PSW": [2, 2, 2],
-    "M&T": [2, 3, 4],
-    "ISC": [2, 3, 5]
+    "STR":  [3, 3],
+    "MTR":  [5, 2],
+    "PSW":  [3, 4],
+    "M&T":  [3, 5],
+    "ISC":  [4, 1]
 }
 mission_scores = np.array(list(mission_scores_input.values()))  # type specified so no matrix multiplication issues later
+mission_labels = list(mission_scores_input.keys())
 
 def calculate_score(criteria, mission_scores):
     scores = mission_scores @ criteria
@@ -58,15 +58,15 @@ def bar_chart_analysis(criteria, mission_scores):
         for winner in winners:
             winner_count[winner] += 1
     
-    plt.bar(['STR', 'MTR', 'PSW', 'M&T', 'ISC'], winner_count/len(possible_weights))
+    plt.bar(mission_labels, winner_count/len(possible_weights))
     plt.ylabel("Proportion of wins")
     plt.xlabel("Mission concept")
-    plt.title("Sustainability sensitivity analysis")
+    plt.title("Technical performance sensitivity analysis")
     plt.ylim(0, 1.1)
     plt.show()
     return winner_count
 
-bar_chart_analysis(criteria, mission_scores)
+print(bar_chart_analysis(criteria, mission_scores))
 
 
 '''CAPTURE MECHANISM'''
