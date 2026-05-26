@@ -2,17 +2,14 @@ from data import get_merged_data
 
 data = get_merged_data()
 
-# Mission constraints
-MIN_MASS_KG = 1500
-MAX_MASS_KG = 2900
-
+# Mission parameters
+ALT_MIN_KM      = 35_700          # km
+ALT_MAX_KM      = 36_500          # km  (includes GEO + graveyard)
+INC_MIN_DEG     = 0.0
+INC_MAX_DEG     = 20.0
+MASS_MIN_KG     = 1_000/0.7
+MASS_MAX_KG     = 2_000/0.7
 MAX_ECC = 0.001
-
-MIN_INC = 0
-MAX_INC = 20
-
-MIN_ALT = 35700
-MAX_ALT = 36500
 
 data = data[(data['MASS_KG'] >= 1500) & (data['MASS_KG'] <= 2900)]
 data = data[(data['ECCENTRICITY']<=0.001)]
@@ -25,28 +22,24 @@ data = data[(data['ECCENTRICITY']<=0.001)]
 ALLOWED_COUNTRIES = {
     "US","JPN","GER","NETH","UK","SWED","NOR","EUTE","SES","ITSO",
 }
+# Name of the dataframe column containing country/operator codes
+COUNTRY_CODE = "COUNTRY"
 
-# Replace OWNER with actual column if different
-COUNTRY_COLUMN = "COUNTRY"
+# Check column exists
+if COUNTRY_CODE in data.columns:
 
-if COUNTRY_COLUMN in data.columns:
+    # Clean formatting
+    data[COUNTRY_CODE] = (
+        data[COUNTRY_CODE]
+        .astype(str)
+        .str.upper()
+        .str.strip()
+    )
 
-    data[COUNTRY_COLUMN] = (data[COUNTRY_COLUMN].astype(str).str.upper().str.strip())
-
-    data = data[data[COUNTRY_COLUMN].isin(ALLOWED_COUNTRIES)]
+    # Apply filter
+    data = data[(data[COUNTRY_CODE].isin(ALLOWED_COUNTRIES))]
 
     print(f"After country filter: {len(data)}")
 
 else:
-    print(f"{COUNTRY_COLUMN} column not found")
-
-######################
-### mass filter ###
-######################
-
-data = data[
-    (data["MASS_KG"] >= MIN_MASS_KG) &
-    (data["MASS_KG"] <= MAX_MASS_KG)
-]
-
-print(f"After mass filter: {len(data)}")
+    print(f"{COUNTRY_CODE} column not found")
