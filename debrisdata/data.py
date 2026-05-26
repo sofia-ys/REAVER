@@ -32,7 +32,7 @@ MASS_MAX_KG     = 2_000
 
 # Cache config
 CACHE_DIR           = Path(".cache/satellite_data")
-CACHE_MAX_AGE_HOURS = 24        # Re-fetch if cached file is older than this
+CACHE_MAX_AGE_HOURS = 24*30        # Re-fetch if cached file is older than this
 CACHE_COMPRESS      = 3         # joblib compression level (0 = off, 9 = max)
 
 logging.basicConfig(
