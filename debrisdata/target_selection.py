@@ -23,7 +23,7 @@ ALLOWED_COUNTRIES = {
     "US","JPN","GER","NETH","UK","SWED","NOR","EUTE","SES","ITSO",
 }
 # Name of the dataframe column containing country/operator codes
-COUNTRY_CODE = "COUNTRY"
+COUNTRY_CODE = "COUNTRY_CODE"
 
 # Check column exists
 if COUNTRY_CODE in data.columns:
@@ -43,3 +43,5 @@ if COUNTRY_CODE in data.columns:
 
 else:
     print(f"{COUNTRY_CODE} column not found")
+
+print(data.columns.tolist())
