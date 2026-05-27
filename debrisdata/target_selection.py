@@ -2,14 +2,6 @@ from data import get_merged_data
 
 data = get_merged_data()
 
-# Mission parameters
-ALT_MIN_KM      = 35_700          # km
-ALT_MAX_KM      = 36_500          # km  (includes GEO + graveyard)
-INC_MIN_DEG     = 0.0
-INC_MAX_DEG     = 20.0
-MASS_MIN_KG     = 1_000/0.7
-MASS_MAX_KG     = 2_000/0.7
-
 print(f"Before country filter: {len(data)}")
 
 ######################
@@ -37,6 +29,9 @@ if COUNTRY_CODE in data.columns:
 else:
     print(f"{COUNTRY_CODE} column not found")
 
+
+print(data["OBJECT_ID"])
+print(data.loc[628])
 
 #Engine compliance with capture mechanism
 
