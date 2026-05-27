@@ -27,8 +27,26 @@ D = zeros(6, 3);
 satellite = ss(A, B, C, D);
 
 % controller
-
-
 Q = eye(6);
-R = eye(3);
-K = lqr(A,B,Q,R);
+R_c = eye(3);
+K = lqr(A,B,Q,R_c);
+
+C_i = C(1:3,:); % augmenting C to integrate attitude angle error (3 integrators)
+n = size(A,1);       
+m = size(B,2);       
+p_i = size(C_i,1);
+Ai = [A, zeros(n,p_i);  % augmented A and B matrices 
+      -C_i, zeros(p_i,p_i)];
+Bi = [B;
+      zeros(p_i,m)];
+
+% Qx and Qz needs to be tuned 
+Qx = diag([100,100,100,1,1,1]);  % states that are penalised in controller logic (angles that are more importnat to control)
+Qz = diag([1000,1000,1000]);  % high value reduces steady-state integral error faster, but too much =overshoot
+Q_i = blkdiag(Qx, Qz);  % adds these two matrices together for the diagonal
+R = eye(m); 
+
+% gain matrices
+K_aug = lqr(Ai, Bi, Q_i, R);  
+Kx = K_aug(:,1:n);
+Ki_z = K_aug(:, n+1:end);         
