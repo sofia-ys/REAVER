@@ -39,10 +39,4 @@ data = data.drop(remove_rows)
 
 #Generate table of desired parameters
 table = data[["OBJECT_NAME","MASS_KG","PERIOD","SEMIMAJOR_AXIS","INCLINATION","RA_OF_ASC_NODE"]]
-print(table)
-
-######################
-#### Optimization ####
-######################
-
-
+print(table.to_string())
