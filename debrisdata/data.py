@@ -4,7 +4,6 @@ import os
 import time
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 import requests
@@ -27,13 +26,16 @@ ALT_MIN_KM      = 35_700          # km
 ALT_MAX_KM      = 36_500          # km  (includes GEO + graveyard)
 INC_MIN_DEG     = 0.0
 INC_MAX_DEG     = 20.0
-MASS_MIN_KG     = 1_000
-MASS_MAX_KG     = 2_000
+MASS_MIN_KG     = 1_000/0.7
+MASS_MAX_KG     = 2_000/0.7
 
 # Cache config
-CACHE_DIR           = Path(".cache/satellite_data")
+# Cache lives inside the repo so it can be shared across users via git.
+# Commit the contents of CACHE_DIR to share refreshed data with teammates.
+# Note on concurrency: if two people refresh and push at the same time, the
+# second push will need to be rebased. With a 30-day TTL this should be rare.
+CACHE_DIR           = Path(__file__).parent.parent / "cache" / "satellite_data"
 CACHE_MAX_AGE_HOURS = 24*30        # Re-fetch if cached file is older than this
-CACHE_COMPRESS      = 3         # joblib compression level (0 = off, 9 = max)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,34 +45,42 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
-memory = joblib.Memory(location=CACHE_DIR, verbose=0, compress=CACHE_COMPRESS)
 
-def _stamp_path(func_name: str) -> Path:
-    return CACHE_DIR / f"{func_name}.timestamp"
+def _cache_path(name: str) -> Path:
+    """Return the on-disk path for a named cache entry."""
+    return CACHE_DIR / f"{name}.pkl.gz"
 
-def _cache_is_fresh(func_name: str) -> bool:
-    """Return True if the timestamp file for *func_name* is within CACHE_MAX_AGE_HOURS."""
-    stamp = _stamp_path(func_name)
-    if not stamp.exists():
+
+def _cache_is_fresh(name: str) -> bool:
+    """Return True if the cache file for *name* exists and is within CACHE_MAX_AGE_HOURS."""
+    path = _cache_path(name)
+    if not path.exists():
         return False
-    age_hours = (time.time() - stamp.stat().st_mtime) / 3600
+    age_hours = (time.time() - path.stat().st_mtime) / 3600
     if age_hours > CACHE_MAX_AGE_HOURS:
         log.info("Cache for '%s' is %.1f h old (max %s h) — will re-fetch.",
-                 func_name, age_hours, CACHE_MAX_AGE_HOURS)
+                 name, age_hours, CACHE_MAX_AGE_HOURS)
         return False
-    log.info("Cache for '%s' is %.1f h old — using cached data.", func_name, age_hours)
+    log.info("Cache for '%s' is %.1f h old — using cached data.", name, age_hours)
     return True
 
-def _touch_stamp(func_name: str) -> None:
-    """Update the timestamp file to mark the cache as freshly populated."""
-    _stamp_path(func_name).touch()
+
+def _read_cache(name: str) -> pd.DataFrame:
+    return pd.read_pickle(_cache_path(name), compression="gzip")
+
+
+def _write_cache(name: str, df: pd.DataFrame) -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    df.to_pickle(_cache_path(name), compression="gzip")
+
 
 def clear_cache():
-    """Delete all cached data and timestamps."""
-    memory.clear(warn=False)
-    for f in CACHE_DIR.glob("*.timestamp"):
-        f.unlink(missing_ok=True)
+    """Delete all cached data files."""
+    if CACHE_DIR.exists():
+        for f in CACHE_DIR.glob("*.pkl.gz"):
+            f.unlink(missing_ok=True)
     log.info("Cache cleared: %s", CACHE_DIR)
+
 
 def fetch_data_startrack() -> pd.DataFrame:
     log.info("Fetching SpaceTrack GP data ...")
@@ -89,6 +99,7 @@ def fetch_data_startrack() -> pd.DataFrame:
     df = df.apply(pd.to_numeric, errors="ignore")
     log.info("SpaceTrack returned %d records.", len(df))
     return df
+
 
 def fetch_data_discos(norad_ids) -> pd.DataFrame:
     URL = "https://discosweb.esoc.esa.int/api/objects"
@@ -131,33 +142,24 @@ def fetch_data_discos(norad_ids) -> pd.DataFrame:
     log.info("DISCOSweb returned %d records.", len(df))
     return df
 
-@memory.cache
-def _cached_fetch_startrack() -> pd.DataFrame:
-    return fetch_data_startrack()
-
-
-@memory.cache
-def _cached_fetch_discos(norad_ids_tuple: tuple) -> pd.DataFrame:
-    return fetch_data_discos(list(norad_ids_tuple))
 
 def get_startrack_data(force_refresh: bool = False) -> pd.DataFrame:
     """Return SpaceTrack data, using cache unless stale or *force_refresh*."""
-    if force_refresh or not _cache_is_fresh("startrack"):
-        _cached_fetch_startrack.clear()
-        df = _cached_fetch_startrack()
-        _touch_stamp("startrack")
-        return df
-    return _cached_fetch_startrack()
+    if not force_refresh and _cache_is_fresh("startrack"):
+        return _read_cache("startrack")
+    df = fetch_data_startrack()
+    _write_cache("startrack", df)
+    return df
+
 
 def get_discos_data(norad_ids, force_refresh: bool = False) -> pd.DataFrame:
     """Return DISCOSweb data, using cache unless stale or *force_refresh*."""
-    norad_tuple = tuple(sorted(int(x) for x in norad_ids))
-    if force_refresh or not _cache_is_fresh("discos"):
-        _cached_fetch_discos.clear()
-        df = _cached_fetch_discos(norad_tuple)
-        _touch_stamp("discos")
-        return df
-    return _cached_fetch_discos(norad_tuple)
+    if not force_refresh and _cache_is_fresh("discos"):
+        return _read_cache("discos")
+    df = fetch_data_discos(list(norad_ids))
+    _write_cache("discos", df)
+    return df
+
 
 def get_merged_data(force_refresh: bool = False) -> pd.DataFrame:
 
@@ -171,6 +173,7 @@ def get_merged_data(force_refresh: bool = False) -> pd.DataFrame:
     data = data[mask]
 
     return data
+
 
 if __name__ == "__main__":
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -187,4 +190,3 @@ if __name__ == "__main__":
     # missing = set(data_st["NORAD_CAT_ID"]) - set(data_discos["SATNO"])
     # print(len(missing), list(missing)[:10])
     #TODO: Find out why so many are missing from discosweb. Seems like discosweb returns same object for multiple satno
-
