@@ -35,27 +35,27 @@ warnings.filterwarnings('ignore')
 MU   = 3.986004418e14   # m³/s²
 G0   = 9.80665          # m/s²
 DAY  = 86400.0
-D2R  = np.pi / 180.0
+D2R  = np.pi / 180.0    #degrees to radians
 
 # ── Spacecraft ─────────────────────────────────────────────────────────────
-MS_DRY   = 1300.0       # kg
+MS_DRY   = 1714.0       # kg
 MS_ISP   = 253.0        # s  (monoprop chemical)
 MS_VEX   = MS_ISP * G0  # m/s
 
-TUG_DRY  = 200.0        # kg each
-TUG_ISP  = 1850.0       # s  (E-propulsion)
+TUG_DRY  = 320.0        # kg each
+TUG_ISP  = 1600.0       # s  (E-propulsion)
 TUG_VEX  = TUG_ISP * G0
-TUG_THR  = 0.2          # N
+TUG_THR  = 0.05          # N
 
 # ── Mission ─────────────────────────────────────────────────────────────────
-T_OPS       = 5.0       # proximity ops per debris [days]
-DA_RATIO    = 0.02     # drift phasing: delta_a / a
+T_OPS       = 10.0       # proximity ops per debris [days]
+DA_RATIO    = 0.01     # drift phasing: delta_a / a
 PHASE_RAD   = np.pi/2   # 90 deg average phase gap
 MAX_DAYS    = 365.0
 SOFT_MASS   = 2000.0    # kg flag threshold
 
 # ── Recycling Hub ───────────────────────────────────────────────────────────
-RH_SMA  = 42164.2e3     # m  (nominal GEO)
+RH_SMA  = 42878.0e3    # m  (36500 km altitude + 6378 km Earth radius; super-synchronous)
 RH_INC  = 7.0           # deg
 RH_RAAN = 10.0          # deg
 
@@ -122,18 +122,27 @@ def build_transfer_table():
             at   = (sa + sb) / 2.0
             va   = np.sqrt(MU / sa)
             vb   = np.sqrt(MU / sb)
-            v_p  = np.sqrt(MU * (2.0/sa - 1.0/at))
-            v_ap = np.sqrt(MU * (2.0/sb - 1.0/at))
-            dv1[i,j]  = abs(v_p - va)
+            v_sa = np.sqrt(MU * (2.0/sa - 1.0/at))  # velocity at sa on transfer ellipse
+            v_sb = np.sqrt(MU * (2.0/sb - 1.0/at))  # velocity at sb on transfer ellipse
             t_tr[i,j] = np.pi * np.sqrt(at**3 / MU) / DAY
 
-            # ── Combined circularisation + plane change at apoapsis ──────
+            # ── Plane-change angle ───────────────────────────────────────
             i1 = INC_ALL[i]*D2R;  o1 = RAAN_ALL[i]*D2R
             i2 = INC_ALL[j]*D2R;  o2 = RAAN_ALL[j]*D2R
             cos_dth = (np.cos(i1)*np.cos(i2) +
                        np.sin(i1)*np.sin(i2)*np.cos(o2-o1))
             dth = np.arccos(np.clip(cos_dth, -1.0, 1.0))
-            dv2[i,j] = np.sqrt(v_ap**2 + vb**2 - 2*v_ap*vb*np.cos(dth))
+
+            # ── Combined circularisation + plane change at apoapsis ──────
+            # Always burn at the apoapsis of the transfer ellipse (lowest cost).
+            # sb > sa: ascending transfer, apoapsis is arrival (sb) — combine at sb
+            # sb < sa: descending transfer, apoapsis is departure (sa) — combine at sa
+            if sb > sa:
+                dv1[i,j] = abs(v_sa - va)
+                dv2[i,j] = np.sqrt(v_sb**2 + vb**2 - 2*v_sb*vb*np.cos(dth))
+            else:
+                dv1[i,j] = np.sqrt(v_sa**2 + va**2 - 2*v_sa*va*np.cos(dth))
+                dv2[i,j] = abs(v_sb - vb)
 
             # ── Drift phasing ────────────────────────────────────────────
             vc_b  = vb
@@ -479,7 +488,7 @@ def _eval_single(seq, ms_prop):
 # PLOTTING
 # =============================================================================
 
-def make_plots(res, save_path='/mnt/user-data/outputs/reaver_optimizer_results.png'):
+def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reaver_optimizer_results.png'):
     BG='#0d1117'; CB='#161b22'; TC='#c9d1d9'; MU_='#8b949e'; GR='#21262d'
     A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'; A5='#ffa657'
     LC=[A1,A2,A4,A3,A5,'#79c0ff']; TC_=[A1,A2,A4,A3,A5]
@@ -651,7 +660,7 @@ if __name__ == '__main__':
         sensitivity(res)
         make_plots(res)
 
-        rpt='/mnt/user-data/outputs/reaver_top_sequences.txt'
+        rpt=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reaver_top_sequences.txt'
         orig=sys.stdout
         with open(rpt,'w') as f:
             sys.stdout=f

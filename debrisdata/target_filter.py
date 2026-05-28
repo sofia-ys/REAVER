@@ -38,5 +38,5 @@ remove_rows = [504,520,525,758,960,1002,1216] #Engines are not compatible
 data = data.drop(remove_rows)
 
 #Generate table of desired parameters
-table = data[["OBJECT_NAME","MASS_KG","PERIOD","SEMIMAJOR_AXIS","INCLINATION","RA_OF_ASC_NODE"]]
+table = data[["OBJECT_NAME","MASS_KG","PERIOD","SEMIMAJOR_AXIS","INCLINATION","RA_OF_ASC_NODE"]]   #,"PERIOD","SEMIMAJOR_AXIS","INCLINATION","RA_OF_ASC_NODE"
 print(table.to_string())
