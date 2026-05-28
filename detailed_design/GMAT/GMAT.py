@@ -1,6 +1,4 @@
-from load_gmat_raphael import gmat
-
-gmat.Help()
+from detailed_design.GMAT.GMAT import gmat
 
 import gmatpyplus as gp
 
