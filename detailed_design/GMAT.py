@@ -1,4 +1,4 @@
-from load_gmat import gmat
+from load_gmat_raphael import gmat
 
 gmat.Help()
 
