@@ -1,6 +1,6 @@
 from mission_spacecraft import SpaceCraft
 
-n_tugs = 4  # number of tugs 
+n_tugs = 5  # number of tugs 
 tug = SpaceCraft(sc_type="tug")
 tug_wet_mass = tug.m_prop + tug.m_dry
 mothership = SpaceCraft(sc_type="ms", m_wet_t=tug_wet_mass)
