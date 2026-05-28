@@ -1,9 +1,9 @@
 GMAT Build Date: Mar 26 2026 15:02:55
 
-GMAT API Log: Created Thu May 28 11:53:26 2026
+GMAT API Log: Created Thu May 28 12:24:32 2026
 
 
-Logging to C:\Users\rapha\PycharmProjects\REAVER\detailed_design\examples\logs\GMAT-Tut02-Log.txt
+Logging to C:\Users\rapha\PycharmProjects\REAVER\trajectory_optimizer\examples\logs\GMAT-Tut02-Log.txt
 Kernel C:/Delft/DSE/gmat-win-R2026a/data/planetary_ephem/spk/DE405AllPlanets.bsp has been loaded.
 Kernel C:\Delft\DSE\gmat-win-R2026a\data\planetary_coeff\SPICEPlanetaryConstantsKernel.tpc has been loaded.
 Kernel C:\Delft\DSE\gmat-win-R2026a\data\time\SPICELeapSecondKernel.tls has been loaded.
@@ -91,6 +91,6 @@ Final Variable values:
 
 
 Mission run completed.
-===> Total Run Time: 0.343 seconds
+===> Total Run Time: 0.097 seconds
 
 ========================================
