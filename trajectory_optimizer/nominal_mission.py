@@ -16,67 +16,9 @@ import time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
-
-# =============================================================================
-# TRANSFER TABLE
-# =============================================================================
-
-def build_transfer_table():
-    N = N_DEB + 1
-    dv1 = np.zeros((N, N)); dv2 = np.zeros((N, N))
-    dv_ph = np.zeros((N, N)); t_tr = np.zeros((N, N)); t_ph = np.zeros((N, N))
-    for i in range(N):
-        sa = SMA_ALL[i]; ia = INC_ALL[i]*D2R; oa = RAAN_ALL[i]*D2R
-        va = np.sqrt(MU/sa)
-        for j in range(N):
-            if i == j: continue
-            sb = SMA_ALL[j]; ib = INC_ALL[j]*D2R; ob = RAAN_ALL[j]*D2R
-            vb = np.sqrt(MU/sb)
-            at   = (sa+sb)/2.0
-            v_sa = np.sqrt(MU*(2/sa - 1/at))
-            v_sb = np.sqrt(MU*(2/sb - 1/at))
-            t_tr[i,j] = np.pi*np.sqrt(at**3/MU)/DAY
-            cos_dth = np.cos(ia)*np.cos(ib) + np.sin(ia)*np.sin(ib)*np.cos(ob-oa)
-            dth = np.arccos(np.clip(cos_dth, -1.0, 1.0))
-            if sb > sa:
-                dv1[i,j] = abs(v_sa - va)
-                dv2[i,j] = np.sqrt(v_sb**2 + vb**2 - 2*v_sb*vb*np.cos(dth))
-            else:
-                dv1[i,j] = np.sqrt(v_sa**2 + va**2 - 2*v_sa*va*np.cos(dth))
-                dv2[i,j] = abs(v_sb - vb)
-            T_tgt    = 2*np.pi*np.sqrt(sb**3/MU)
-            T_ph_orb = T_tgt*(1.0 - 1.0/(4.0*N_PHASE_REV))
-            a_ph     = (MU*(T_ph_orb/(2*np.pi))**2)**(1.0/3.0)
-            dv_ph[i,j] = 2*abs(np.sqrt(MU/sb) - np.sqrt(MU*(2/sb - 1/a_ph)))
-            t_ph[i,j]  = N_PHASE_REV*T_ph_orb/DAY
-    return dv1, dv2, dv_ph, t_tr, t_ph
-
-print("  Building transfer table...", end=' ', flush=True)
-DV1, DV2, DV_PH, T_TR, T_PH = build_transfer_table()
-DV_LEG = DV1 + DV2 + DV_PH
-T_LEG  = T_TR + T_PH
-print("done")
-
-# ── Tug spirals ───────────────────────────────────────────────────────────────
-TUG_DV = np.zeros(N_DEB); TUG_TIME = np.zeros(N_DEB)
-TUG_MPROP = np.zeros(N_DEB); TUG_MWET = np.zeros(N_DEB)
-for k in range(N_DEB):
-    m_pl  = TUG_DRY + MASS[k]; m_wet = m_pl*1.35
-    i1,o1 = INC[k], RAAN[k]; i2,o2 = RH_INC, RH_RAAN
-    v1 = np.sqrt(MU/SMA[k]); v2 = np.sqrt(MU/RH_SMA)
-    cos_d = (np.cos(i1*D2R)*np.cos(i2*D2R) +
-             np.sin(i1*D2R)*np.sin(i2*D2R)*np.cos((o2-o1)*D2R))
-    dv_e = np.sqrt(v1**2 + v2**2 - 2*v1*v2*np.cos(np.pi/2*np.arccos(np.clip(cos_d,-1,1))))
-    for _ in range(60):
-        mf = m_wet*np.exp(-dv_e/TUG_VEX); mnew = m_pl + (m_wet-mf)
-        if abs(mnew-m_wet) < 0.05: break
-        m_wet = 0.6*m_wet + 0.4*mnew
-    t_s = (m_wet*TUG_VEX/TUG_THR)*(1 - np.exp(-dv_e/TUG_VEX))
-    TUG_DV[k]=dv_e; TUG_TIME[k]=t_s/DAY; TUG_MPROP[k]=m_wet-m_pl; TUG_MWET[k]=m_wet
-TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max()
-
-T_tgt_rh = 2*np.pi*np.sqrt(RH_SMA**3/MU)
-T_PH_RH  = N_PHASE_REV*T_tgt_rh*(1.0 - 1.0/(4.0*N_PHASE_REV))/DAY
+from reaver_core import (DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
+                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED,
+                         T_PH_RH)
 
 # =============================================================================
 # USER INPUT

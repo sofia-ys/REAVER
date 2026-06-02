@@ -16,6 +16,7 @@ import time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
+from reaver_core import compute_tug_spirals
 
 # =============================================================================
 # PRE-COMPUTE DEBRIS↔DEBRIS TRANSFER TABLE  (independent of RH RAAN)
@@ -129,26 +130,7 @@ def _rh_transfers(rh_raan_deg):
 
 def _tug_data(rh_raan_deg):
     """Return TUG_MPROP and TUG_TIME arrays for all debris at given RH RAAN."""
-    mprop = np.zeros(N_DEB)
-    ttime = np.zeros(N_DEB)
-    for k in range(N_DEB):
-        m_pl  = TUG_DRY + MASS[k]
-        m_wet = m_pl * 1.35
-        i1,o1 = INC[k], RAAN[k]
-        i2,o2 = RH_INC, rh_raan_deg
-        v1 = np.sqrt(MU/SMA[k]); v2 = np.sqrt(MU/RH_SMA)
-        cos_d = (np.cos(i1*D2R)*np.cos(i2*D2R) +
-                 np.sin(i1*D2R)*np.sin(i2*D2R)*np.cos((o2-o1)*D2R))
-        dth  = np.arccos(np.clip(cos_d, -1, 1))
-        dv_e = np.sqrt(v1**2 + v2**2 - 2*v1*v2*np.cos(np.pi/2*dth))
-        for _ in range(60):
-            mf   = m_wet * np.exp(-dv_e/TUG_VEX)
-            mnew = m_pl + (m_wet - mf)
-            if abs(mnew - m_wet) < 0.05: break
-            m_wet = 0.6*m_wet + 0.4*mnew
-        t_s = (m_wet * TUG_VEX / TUG_THR) * (1 - np.exp(-dv_e/TUG_VEX))
-        mprop[k] = m_wet - m_pl
-        ttime[k] = t_s / DAY
+    tug_dv, ttime, mprop, tug_mwet = compute_tug_spirals(rh_raan_deg)
     return mprop, ttime
 
 

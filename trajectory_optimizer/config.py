@@ -14,12 +14,12 @@ DAY = 86400.0          # s      seconds per day
 D2R = np.pi / 180.0   # rad/°  degrees to radians
 
 # ── Mothership ────────────────────────────────────────────────────────────────
-MS_DRY = 1650.357      # kg   dry mass
+MS_DRY = 1523.406      # kg   dry mass
 MS_ISP = 253.0         # s    specific impulse (monoprop chemical)
 MS_VEX = MS_ISP * G0  # m/s  effective exhaust velocity
 
 # ── Tug ───────────────────────────────────────────────────────────────────────
-TUG_DRY = 308.0        # kg   dry mass per tug
+TUG_DRY = 284.36796        # kg   dry mass per tug
 TUG_ISP = 1600.0       # s    specific impulse (electric propulsion)
 TUG_VEX = TUG_ISP * G0
 TUG_THR = 0.065        # N    thrust per tug
