@@ -15,54 +15,7 @@ import matplotlib.pyplot as plt
 import time, warnings
 warnings.filterwarnings('ignore')
 
-# ── Constants (keep in sync with reaver_optimizer.py) ───────────────────────
-MU  = 3.986004418e14
-G0  = 9.80665
-DAY = 86400.0
-D2R = np.pi / 180.0
-
-MS_DRY = 1650.357
-MS_ISP = 253.0
-MS_VEX = MS_ISP * G0
-
-TUG_DRY = 308.0
-TUG_ISP = 1600.0
-TUG_VEX = TUG_ISP * G0
-TUG_THR = 0.065
-
-N_PHASE_REV = 15
-T_OPS       = 10.0
-MAX_DAYS    = 365.0
-
-RH_SMA = 42878.0e3
-RH_INC = 7.0
-
-# ── Debris catalogue ─────────────────────────────────────────────────────────
-_RAW = [
-    (489,  'NSS 5 (Intelsat 803)',     2060.46, 42494.423, 10.4813,  48.1496),
-    (495,  'Sirius 2 (GE-1E)',        1762.14, 42410.084, 11.9727,  34.1101),
-    (518,  'EUTE W2',                  1793.86, 42451.133, 11.6171,  38.4600),
-    (530,  'Skynet 4E',                1490.00, 42516.912, 12.0550,   9.2220),
-    (556,  'EUTE 16C (SESAT 1)',       2600.00, 42537.778, 10.8393,  46.2495),
-    (593,  'Skynet 4F',                1489.00, 42482.488, 12.1030,  18.6123),
-    (628,  'EUTE 12 West A (AB 1)',    2700.00, 42728.199,  7.2278,  68.7938),
-    (653,  'EUTE 33A (EB 3)',          1552.00, 42558.620,  9.6938,  55.8840),
-    (660,  'SESAT 2 (Express AM-22)',  2542.00, 42420.904,  8.2239,  64.3413),
-    (705,  'Meteosat 9 (MSG 2)',       2054.00, 42163.863,  9.3136,  54.3880),
-    (741,  'EUTE 8A (Sinosat 3)',      2320.00, 42716.964,  9.5162,  48.3713),
-    (804,  'COMSATBW-1',              2440.00, 42164.245,  0.0696,  89.6878),
-    (819,  'COMSATBW-2',              2440.00, 42164.548,  0.0344, 111.5455),
-    (834,  'HYLAS 1',                 2570.00, 42164.346,  5.5899,  73.2864),
-    (884,  'Meteosat 10 (MSG 3)',      2035.00, 42164.226,  4.6216,  61.1229),
-    (967,  'Meteosat 11 (MSG 4)',      2043.00, 42164.271,  3.1471,  71.2262),
-]
-N_DEB  = len(_RAW)
-NAMES  = [r[1] for r in _RAW]
-MASS   = np.array([r[2] for r in _RAW])
-SMA    = np.array([r[3] for r in _RAW]) * 1e3
-INC    = np.array([r[4] for r in _RAW])
-RAAN   = np.array([r[5] for r in _RAW])
-RH_IDX = N_DEB  # index 16
+from config import *
 
 # =============================================================================
 # PRE-COMPUTE DEBRIS↔DEBRIS TRANSFER TABLE  (independent of RH RAAN)
