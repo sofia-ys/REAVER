@@ -1,10 +1,12 @@
 from sklearn.cluster import k_means
 import pandas as pd
+
+from debrisdata.data import get_merged_data
 from plotting import plot_raan_hist, plot_inclination_hist
 
-def cluster(data: pd.DataFrame):
-    data = data.set_index('SATNO')
-    fit_data = data[['INCLINATION', 'RA_OF_ASC_NODE']].copy()
+def cluster(df: pd.DataFrame):
+    df = data.set_index('SATNO')
+    fit_data = df[['INCLINATION', 'RA_OF_ASC_NODE']].copy()
 
     centroid, labels, inertia = k_means(fit_data, n_clusters=10, n_init='auto', random_state=0)
 
@@ -17,4 +19,6 @@ def cluster(data: pd.DataFrame):
     plot_inclination_hist(data_largest, show=True)
 
 
-    fit_data
+if __name__ == '__main__':
+    data = get_merged_data()
+    cluster(data)
