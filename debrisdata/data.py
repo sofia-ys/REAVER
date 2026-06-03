@@ -25,7 +25,7 @@ DISCOS_TOKEN    = os.environ.get("DISCOS_TOKEN")   # https://discosweb.esac.esa.
 ALT_MIN_KM      = 35_700          # km
 ALT_MAX_KM      = 36_500          # km  (includes GEO + graveyard)
 INC_MIN_DEG     = 0.0
-INC_MAX_DEG     = 20.0
+INC_MAX_DEG     = 15.0
 MASS_MIN_KG     = 1_000/0.7
 MASS_MAX_KG     = 2_000/0.7
 

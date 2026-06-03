@@ -14,7 +14,10 @@ ALLOWED_COUNTRIES = {
 }
 # Name of the dataframe column containing country/operator codes
 COUNTRY_CODE = "COUNTRY_CODE"
+#Engine compliance with capture mechanism
 
+remove_rows = [504,520,525,758,960,1002,1216] #Engines are not compatible
+data = data.drop(remove_rows)
 # Check column exists
 if COUNTRY_CODE in data.columns:
 
@@ -33,9 +36,7 @@ ALLOWED_ENGINES = {
     "GER","NETH","UK","SWED","NOR","EUTE","EUME"
 }
 
-#Engine compliance with capture mechanism
-remove_rows = [504,520,525,758,960,1002,1216] #Engines are not compatible
-data = data.drop(remove_rows)
+
 
 #Generate table of desired parameters
 table = [
@@ -45,9 +46,20 @@ table = [
         float(row["MASS_KG"]),
         float(row["SEMIMAJOR_AXIS"]),
         float(row["INCLINATION"]),
-        float(row["RA_OF_ASC_NODE"])
+        float(row["RA_OF_ASC_NODE"]),
+        float(row["ECCENTRICITY"]),
+        float(row["ARG_OF_PERICENTER"]),
+        float(row["MEAN_ANOMALY"]),
+        float(row["REV_AT_EPOCH"]),
+        float(row["PERIOD"]),
+        float(row["APOAPSIS"]),
+        float(row["PERIAPSIS"]),
+        row["EPOCH"],
+        row["LAUNCH_DATE"]
     )
     for idx, row in data.iterrows()
 ]
 
 print(table)
+
+#epoch, mean motion, eccentricity, arg_of_pericenter, mean_anomaly, REV_AT_EPOCh, Period, APOAPSIS, PERIAPSIS, LAUNCH_DATE
