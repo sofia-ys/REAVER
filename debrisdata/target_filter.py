@@ -10,7 +10,7 @@ print(f"Before country filter: {len(data)}")
 
 # Allowed ownership/operator codes
 ALLOWED_COUNTRIES = {
-    "GER","NETH","SWED","NOR","EUTE","EUME","US","SES","ITSO","CA","UK","AUS","JPN","IND"
+    "NIG","GER","NETH","SWED","NOR","EUTE","EUME","US","SES","ITSO","CA","UK","AUS","JPN","IND"
 }
 # Name of the dataframe column containing country/operator codes
 COUNTRY_CODE = "COUNTRY_CODE"
