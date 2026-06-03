@@ -81,7 +81,7 @@ def build_transfer_table(rh_raan_deg=RH_RAAN):
 
 def compute_tug_spirals(rh_raan_deg=RH_RAAN):
     """
-    Edelbaum iterative sizing for all 16 debris-to-RH tug spirals.
+    Edelbaum iterative sizing for all N_DEB debris-to-RH tug spirals.
 
     Parameters
     ----------
@@ -90,7 +90,7 @@ def compute_tug_spirals(rh_raan_deg=RH_RAAN):
 
     Returns
     -------
-    tug_dv, tug_time, tug_mprop, tug_mwet : (16,) arrays
+    tug_dv, tug_time, tug_mprop, tug_mwet : (N_DEB,) arrays
     """
     tug_dv    = np.zeros(N_DEB)
     tug_time  = np.zeros(N_DEB)
