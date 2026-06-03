@@ -11,7 +11,6 @@ from matplotlib import pyplot as plt
 from spacetrack import SpaceTrackClient
 import spacetrack.operators as op
 from plotting import plot_raan_hist, plot_inclination_hist
-from clustering import cluster
 from dotenv import load_dotenv
 
 # CONFIG
