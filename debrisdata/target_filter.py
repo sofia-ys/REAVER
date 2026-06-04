@@ -59,7 +59,7 @@ else:
     print(f"{RAAN_COL} column not found")
 
 
-
+print(data.to_string())
 #Generate table of desired parameters
 table = [
     (
