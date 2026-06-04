@@ -60,7 +60,7 @@ else:
 
 
 print(data.to_string())
-#Generate table of desired parameterskjhkj
+#Generate table of desired parameterskjhkj jegni
 table = [
     (
         int(idx),
