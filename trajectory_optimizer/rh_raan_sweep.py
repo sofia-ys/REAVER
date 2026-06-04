@@ -215,7 +215,7 @@ def evaluate_raan(rh_raan_deg):
 # RUN SWEEP
 # =============================================================================
 
-RAAN_SWEEP = np.arange(0, 360, 1)   # 72 values
+RAAN_SWEEP = np.arange(60, 90, 1)   # 72 values
 
 print(f"\n  Sweeping RH RAAN 0°→355° in 5° steps ({len(RAAN_SWEEP)} points)...")
 print(f"  {'RAAN':>6}  {'Combos':>10}  {'Prop best':>10}  {'Prop worst':>11}  {'Time':>6}")
@@ -335,7 +335,7 @@ ax2.set_ylabel(f'Feasible combinations (of {N_COMBOS})')
 ax2.set_title('Feasible combinations vs RH RAAN', color=TC, fontsize=9,
               fontweight='bold', pad=6)
 ax2.legend(fontsize=7.5, facecolor=CB, labelcolor=TC, edgecolor=GR)
-ax2.set_xlim(0, max(RAAN_SWEEP))
+ax2.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
 
 SAVE = r'C:\Projects\DSE\REAVER\trajectory_optimizer\rh_raan_sweep.png'
 plt.tight_layout(rect=[0, 0, 1, 0.97])

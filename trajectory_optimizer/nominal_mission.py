@@ -132,7 +132,8 @@ def optimise_ordering(debris_indices):
 def evaluate_sequence(seq):
     nf = [RH_IDX] + list(seq)
     nt = list(seq) + [RH_IDX]
-    tug_mwets = TUG_DRY + TUG_MPROP[list(seq)]
+    tug_prop_uniform = float(TUG_MPROP[list(seq)].max())   # worst-case tug sets the standard
+    tug_mwets = np.full(5, TUG_DRY + tug_prop_uniform)
 
     # Backward pass: propellant sized to end at MS_DRY exactly
     m = MS_DRY
@@ -221,15 +222,17 @@ def print_results(r):
           f"{'Spiral d':>9} {'Start d':>8} {'Arrive d':>9} {'Handover':>9}")
     print(f"  {'':─<3} {'':─<28} {'':─>8} {'':─>8} "
           f"{'':─>9} {'':─>8} {'':─>9} {'':─>9}")
+    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
     for i, idx in enumerate(seq):
+        worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == TUG_MPROP[list(seq)].max() else ''
         print(f"  {i+1:<3} {NAMES[idx]:<28} "
-              f"{TUG_DV[idx]:>7.1f}m {TUG_MPROP[idx]:>7.1f}kg "
+              f"{TUG_DV[idx]:>7.1f}m {tug_prop_uniform:>7.1f}kg "
               f"{TUG_TIME[idx]:>8.1f}d {r['tug_starts'][i]:>7.1f}d "
-              f"{r['tug_arrive'][i]:>8.1f}d {r['handover'][i]:>8.1f}d")
+              f"{r['tug_arrive'][i]:>8.1f}d {r['handover'][i]:>8.1f}d{worst_flag}")
 
     # Summary box
     feas_str = "✓ FEASIBLE" if r['feasible'] else "✗ EXCEEDS 365 d"
-    tug_prop_total = TUG_MPROP[list(seq)].sum()
+    tug_prop_total = float((r['tug_mwets'] - TUG_DRY).sum())
     print(f"\n  ┌{'─'*58}┐")
     print(f"  │  Mothership ΔV total      : {r['tot_dv']:>8.1f} m/s                 │")
     print(f"  │  MS propellant used       : {r['ms_prop']:>8.1f} kg                  │")

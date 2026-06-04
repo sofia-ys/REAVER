@@ -12,7 +12,7 @@ print(f"Before country filter: {len(data)}")
 
 # Allowed ownership/operator codes
 ALLOWED_COUNTRIES = {
-    "GER","NETH","SWED","NOR","EUTE","EUME","US","SES","ITSO","CA","UK","AUS","JPN","IND"
+    "GER","NETH","SWED","NOR","EUTE","EUME","US","SES","ITSO","UK"
 }
 # Name of the dataframe column containing country/operator codes
 COUNTRY_CODE = "COUNTRY_CODE"
@@ -22,7 +22,7 @@ COUNTRY_CODE = "COUNTRY_CODE"
 # remove_rows = [504,520,525,758,960,1002,1216] #Engines are not compatible
 # data = data.drop(remove_rows)
 
-remove_rows = [504,520,525,758,960,1002,1216] #Engines are not compatible
+remove_rows = [451, 482, 516, 660] #Engines are not compatible
 data = data.drop(remove_rows)
 # Check column exists
 if COUNTRY_CODE in data.columns:
@@ -39,8 +39,8 @@ else:
     print(f"{COUNTRY_CODE} column not found")
 
 # Allowed RAAN range in degrees
-RAAN_MIN_DEG = 30.0
-RAAN_MAX_DEG = 80.0
+RAAN_MIN_DEG = 60.0
+RAAN_MAX_DEG = 90.0
 # Name of the dataframe column containing RAAN values
 RAAN_COL = "RA_OF_ASC_NODE"
 
@@ -68,16 +68,7 @@ table = [
         float(row["MASS_KG"]),
         float(row["SEMIMAJOR_AXIS"]),
         float(row["INCLINATION"]),
-        float(row["RA_OF_ASC_NODE"]),
-        float(row["ECCENTRICITY"]),
-        float(row["ARG_OF_PERICENTER"]),
-        float(row["MEAN_ANOMALY"]),
-        float(row["REV_AT_EPOCH"]),
-        float(row["PERIOD"]),
-        float(row["APOAPSIS"]),
-        float(row["PERIAPSIS"]),
-        row["EPOCH"],
-        row["LAUNCH_DATE"]
+        float(row["RA_OF_ASC_NODE"])
     )
     for idx, row in data.iterrows()
 ]

@@ -78,8 +78,9 @@ def evaluate_all_sequences():
     dv_legs = DV_LEG[from_nodes, to_nodes]   # (n_seq, 6)
     t_legs  = T_LEG[from_nodes,  to_nodes]   # (n_seq, 6)
 
-    # Per-sequence tug wet masses: each tug sized for its actual debris
-    tug_mwet_seq = (TUG_DRY + TUG_MPROP[sequences]).astype(np.float64)  # (n_seq, 5)
+    # Per-sequence tug wet masses: all 5 tugs sized to the worst-case debris in each sequence
+    tug_prop_uniform = TUG_MPROP[sequences].max(axis=1, keepdims=True)   # (n_seq, 1)
+    tug_mwet_seq = (TUG_DRY + np.repeat(tug_prop_uniform, 5, axis=1)).astype(np.float64)  # (n_seq, 5)
 
     # Backward pass: required initial mass so final mass = MS_DRY exactly
     m_req = np.full(n_seq, MS_DRY, dtype=np.float64)
@@ -184,7 +185,7 @@ def evaluate_all_sequences():
     order  = np.argsort(score)
     sel    = c_idx[order]
 
-    tug_prop_sel = TUG_MPROP[f_seq[sel]].sum(axis=1)
+    tug_prop_sel = TUG_MPROP[f_seq[sel]].max(axis=1) * 5   # uniform sizing: 5× worst tug in sequence
     results = {
         'sequences':   f_seq[sel],
         'score':       score[order],
@@ -256,13 +257,15 @@ def print_top(res, n=3, start=0, label=None):
               f"{'Arrive d':>9} {'Handover':>9}")
         print(f"  {'':─<3} {'':─<28} {'':─>8} {'':─>8} "
               f"{'':─>9} {'':─>9} {'':─>9}")
+        tug_prop_uniform = TUG_MPROP[list(seq)].max()
         for i, idx in enumerate(seq):
+            worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == tug_prop_uniform else ''
             print(f"  {i+1:<3} {NAMES[idx]:<28} "
                   f"{TUG_DV[idx]:>7.1f}m "
-                  f"{TUG_MPROP[idx]:>7.1f}kg "
+                  f"{tug_prop_uniform:>7.1f}kg "
                   f"{TUG_TIME[idx]:>8.1f}d "
                   f"{res['tug_arrive'][rank,i]:>8.1f}d "
-                  f"{res['handover'][rank,i]:>8.1f}d")
+                  f"{res['handover'][rank,i]:>8.1f}d{worst_flag}")
 
         print(f"\n  ┌────────────────────────────────────────────────────────┐")
         print(f"  │  Mothership ΔV total     : {res['total_dv'][rank]:>8.1f} m/s             │")
@@ -310,7 +313,7 @@ def print_target_frequency(res, top_n=50):
 def print_mass_timeline(res, rank, label):
     seq       = res['sequences'][rank]
     ms_prop   = res['ms_prop'][rank]
-    tug_mwets = TUG_DRY + TUG_MPROP[list(seq)]
+    tug_mwets = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
     nf_       = [RH_IDX] + list(seq)
     nt_       = list(seq) + [RH_IDX]
     m0        = MS_DRY + ms_prop + tug_mwets.sum()
@@ -431,7 +434,7 @@ def _eval_single(seq, ms_prop):
     """Scalar evaluation of one sequence for sensitivity sweeps."""
     nodes_from = [RH_IDX] + list(seq)
     nodes_to   = list(seq) + [RH_IDX]
-    tug_mwets  = TUG_DRY + TUG_MPROP[list(seq)]
+    tug_mwets  = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
     mw = MS_DRY + ms_prop + tug_mwets.sum()
     day = 0.0
     for i in range(6):
@@ -543,6 +546,9 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'; A5='#ffa657'
     LC=[A1,A2,A4,A3,A5,'#79c0ff']; TC_=[A1,A2,A4,A3,A5]
 
+    nf = res['n_feasible']
+    _wp = int(np.argmax(res['prop_used'])) if wp is None else wp   # worst MS prop rank
+
     fig = plt.figure(figsize=(20,11)); fig.patch.set_facecolor(BG)
     gs  = GridSpec(2,3,figure=fig,hspace=0.52,wspace=0.36,
                    height_ratios=[1,1.3])
@@ -555,34 +561,35 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
         ax.grid(True,color=GR,lw=0.5,alpha=0.7)
         if title: ax.set_title(title,color=TC,fontsize=9,fontweight='bold',pad=8)
 
-    fig.text(0.5,0.980,'REAVER Mission Optimizer — Results Dashboard',
+    fig.text(0.5,0.980,'REAVER Mission Optimizer — Results Dashboard (Worst-Case MS Propellant)',
              ha='center',color=TC,fontsize=15,fontweight='bold')
     fig.text(0.5,0.958,
              f'MS: dry {MS_DRY}kg, Isp={MS_ISP}s  |  '
              f'Tug: dry {TUG_DRY}kg, Isp={TUG_ISP}s, T={TUG_THR}N  |  '
-             f'T_ops={T_OPS}d/debris  |  Hohmann phasing {N_PHASE_REV} revs  |  ≤{MAX_DAYS:.0f}d',
+             f'T_ops={T_OPS}d/debris  |  Hohmann phasing {N_PHASE_REV} revs  |  ≤{MAX_DAYS:.0f}d  |  '
+             f'Rank {_wp+1}/{nf} (worst MS prop)',
              ha='center',color=MU_,fontsize=8)
 
-    seq0 = res['sequences'][0]
+    seqW = res['sequences'][_wp]
 
     # ── 1. Mission timeline ribbon (full width) ───────────────────────────
     ax5 = fig.add_subplot(gs[0,:])
-    sax(ax5,'#1 solution — full mission timeline')
+    sax(ax5,f'Worst-case MS prop (rank {_wp+1}/{nf}) — full mission timeline')
     events=[(0,'Depart RH',MU_)]
     cum=0.0
-    for i,idx in enumerate(seq0):
-        fi=[RH_IDX]+list(seq0)
-        ti=list(seq0)+[RH_IDX]
+    for i,idx in enumerate(seqW):
+        fi=[RH_IDX]+list(seqW)
+        ti=list(seqW)+[RH_IDX]
         cum+=T_TR[fi[i],ti[i]]+T_PH[fi[i],ti[i]]
         events.append((cum,f'Arr.{i+1}:{NAMES[idx].split("(")[0][:9]}',LC[i]))
         cum+=T_OPS
         events.append((cum,f'Handoff Tug{i+1}',TC_[i]))
-    cum+=T_TR[seq0[-1],RH_IDX]+T_PH[seq0[-1],RH_IDX]
+    cum+=T_TR[seqW[-1],RH_IDX]+T_PH[seqW[-1],RH_IDX]
     events.append((cum,'MS@RH',A2))
     for i in range(5):
-        events.append((res['handover'][0,i],
-                       f'HO:{NAMES[seq0[i]].split("(")[0][:9]}',A4))
-    events.append((res['mission_day'][0],'✓ DONE',A3))
+        events.append((res['handover'][_wp,i],
+                       f'HO:{NAMES[seqW[i]].split("(")[0][:9]}',A4))
+    events.append((res['mission_day'][_wp],'✓ DONE',A3))
     events.sort(key=lambda x:x[0])
     for j,(day,label,col) in enumerate(events):
         ax5.axvline(day,color=col,alpha=0.5,lw=0.9)
@@ -597,26 +604,26 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
 
     # ── 2. Tug spiral Gantt ───────────────────────────────────────────────
     ax4 = fig.add_subplot(gs[1,0])
-    sax(ax4,'#1 solution — tug spiral Gantt')
-    for i,idx in enumerate(seq0):
-        s=res['tug_start'][0,i]; e=res['tug_arrive'][0,i]
+    sax(ax4,f'Worst-case MS prop (rank {_wp+1}/{nf}) — tug spiral Gantt')
+    for i,idx in enumerate(seqW):
+        s=res['tug_start'][_wp,i]; e=res['tug_arrive'][_wp,i]
         ax4.barh(i,e-s,left=s,color=TC_[i],alpha=0.8,ec='none',height=0.55)
         ax4.text(e+1.5,i,f'd{e:.0f}',va='center',fontsize=7,color=TC_[i])
-    ax4.axvline(res['ms_return'][0],color='white',lw=1.2,ls=':',alpha=0.7,
-                label=f"MS@RH d{res['ms_return'][0]:.0f}")
+    ax4.axvline(res['ms_return'][_wp],color='white',lw=1.2,ls=':',alpha=0.7,
+                label=f"MS@RH d{res['ms_return'][_wp]:.0f}")
     ax4.axvline(MAX_DAYS,color=A3,lw=1.3,ls='--',alpha=0.85,label='365d')
     ax4.set_yticks(range(5))
-    ax4.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seq0],fontsize=7)
+    ax4.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seqW],fontsize=7)
     ax4.set_xlabel('Mission day')
     ax4.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
 
     # ── 3. Mothership mass vs time ────────────────────────────────────────
     ax_m = fig.add_subplot(gs[1,1])
-    sax(ax_m,'#1 solution — mothership mass vs time')
-    tug_mwets0 = TUG_DRY + TUG_MPROP[list(seq0)]
-    ms_wet0 = MS_DRY + res['ms_prop'][0] + tug_mwets0.sum()
-    nf_m = [RH_IDX] + list(seq0)
-    nt_m = list(seq0) + [RH_IDX]
+    sax(ax_m,f'Worst-case MS prop (rank {_wp+1}/{nf}) — mothership mass vs time')
+    tug_mwets0 = np.full(5, TUG_DRY + TUG_MPROP[list(seqW)].max())
+    ms_wet0 = MS_DRY + res['ms_prop'][_wp] + tug_mwets0.sum()
+    nf_m = [RH_IDX] + list(seqW)
+    nt_m = list(seqW) + [RH_IDX]
     m = ms_wet0
     t = 0.0
     t_pts=[t]; m_pts=[m]
@@ -646,8 +653,6 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     ax_m.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
 
     # ── 4. All-combinations scatter: ΔV vs mission day ───────────────────
-    nf = res['n_feasible']
-    _wp = int(np.argmax(res['prop_used'])) if wp is None else wp
     ax6 = fig.add_subplot(gs[1,2])
     sax(ax6, 'All combinations — total ΔV vs mission day')
     sc = ax6.scatter(res['mission_day'], res['total_dv'],
@@ -656,7 +661,7 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     for rank, col, marker, lbl in [
         (0,      A2, '*', f'Best (rank 1)'),
         (nf - 1, A3, '*', f'Worst score (rank {nf})'),
-        (_wp,    A5, 'D', f'Worst prop (rank {_wp+1})'),
+        (_wp,    A5, 'D', f'Worst MS prop (rank {_wp+1})'),
     ]:
         ax6.scatter(res['mission_day'][rank], res['total_dv'][rank],
                     color=col, s=130, marker=marker, zorder=5,
@@ -697,26 +702,15 @@ if __name__ == '__main__':
         wp  = int(np.argmax(res['prop_used']))
         wtp = int(np.argmax(res['total_prop']))
 
-        print_top(res, n=1, start=0,
-                  label=f"BEST CASE (rank 1/{nf})")
-        print_top(res, n=1, start=nf - 1,
-                  label=f"WORST CASE — combined score (rank {nf}/{nf})")
         print_top(res, n=1, start=wp,
                   label=f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
-        if wtp != wp:
-            print_top(res, n=1, start=wtp,
-                      label=f"WORST CASE — total propellant (rank {wtp+1}/{nf})")
 
         print_prop_comparison(res, wp, wtp)
 
-        print_mass_timeline(res, 0,      f"BEST CASE (rank 1/{nf})")
-        print_mass_timeline(res, nf - 1, f"WORST CASE — combined score (rank {nf}/{nf})")
-        print_mass_timeline(res, wp,     f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
-        if wtp != wp:
-            print_mass_timeline(res, wtp, f"WORST CASE — total propellant (rank {wtp+1}/{nf})")
+        print_mass_timeline(res, wp, f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
 
         print_target_frequency(res, top_n=res['n_feasible'])
-        # sensitivity(res)
+        sensitivity(res)
         make_plots(res, wp=wp)
 
     print("\n  Done.")
