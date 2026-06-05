@@ -13,19 +13,23 @@ import matplotlib.pyplot as plt
 
 # adjust this as needed
 criteria_input = {
-    "time": 0.4,
-    "equivalent_mass": 0.6
+    "mass": 0.2,
+    "tumbling_performance": 0.1,
+    "docking_performance": 0.25,
+    "operational_flexibility": 0.1,
+    "reliability_and_redundancy": 0.25,
+    "TRL": 0.1
 }
 criteria = np.array(list(criteria_input.values())).reshape(-1, 1) 
 
 # here you put in the scores for each category (in order of the criteria)
 # if it's in excel, just copy paste this and your table into chat and ask it to write it out
 mission_scores_input = {
-    "STR":  [3, 3],
-    "MTR":  [5, 2],
-    "PSW":  [3, 4],
-    "M&T":  [3, 5],
-    "ISC":  [4, 1]
+    "GAG":      [5, 3, 4, 4, 3, 4],
+    "RM":       [3, 4, 5, 5, 5, 4],
+    "Clamp":    [4, 3, 4, 4, 5, 4],
+    "PA":       [4, 3, 4, 3, 5, 5],
+    "MEV-M":    [5, 3, 4, 3, 5, 5]
 }
 mission_scores = np.array(list(mission_scores_input.values()))  # type specified so no matrix multiplication issues later
 mission_labels = list(mission_scores_input.keys())
@@ -61,7 +65,7 @@ def bar_chart_analysis(criteria, mission_scores):
     plt.bar(mission_labels, winner_count/len(possible_weights))
     plt.ylabel("Proportion of wins")
     plt.xlabel("Mission concept")
-    plt.title("Technical performance sensitivity analysis")
+    plt.title("Capture mechanism sensitivity analysis")
     plt.ylim(0, 1.1)
     plt.show()
     return winner_count
@@ -84,6 +88,26 @@ print(bar_chart_analysis(criteria, mission_scores))
 #     "Clamp":    [4, 3, 4, 4, 5, 4],
 #     "PA":       [4, 3, 4, 3, 5, 5],
 #     "MEV-M":    [5, 3, 4, 3, 5, 5]
+# }
+
+'''CAPTURE MECHANISM WITH DCR'''
+# criteria_input = {
+#     "mass": 0.2,
+#     "tumbling_performance": 0.1,
+#     "docking_performance": 0.2,
+#     "operational_flexibility": 0.1,
+#     "reliability_and_redundancy": 0.2,
+#     "TRL": 0.1,
+#     "debris_creation_risk": 0.1
+# }
+# mission_scores_input = {
+#     "RM":       [3, 4, 5, 5, 5, 4, 2],
+#     "GAG":      [5, 3, 4, 4, 3, 4, 3],
+#     "PA":       [4, 3, 4, 3, 5, 5, 3],
+#     "MEV-M":    [5, 3, 4, 3, 5, 5, 3],
+#     "Soft-R":   [5, 4, 3, 5, 3, 3, 3],
+#     "ADH":      [5, 2, 4, 5, 2, 2, 3],
+#     "SU-NET":   [5, 5, 1, 5, 2, 5, 4]
 # }
 
 '''CHEMICAL PROPULSION'''
