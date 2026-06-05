@@ -158,4 +158,3 @@ TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max()
 print(f"done ({time.time()-t0:.2f}s)")
 print(f"  Tug loaded wet mass (worst-case sizing): {TUG_WET_LOADED:.1f} kg")
 
-_, T_PH_RH = phasing_hohmann(RH_SMA)

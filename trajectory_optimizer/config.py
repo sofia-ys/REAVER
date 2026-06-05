@@ -22,7 +22,7 @@ MS_VEX = MS_ISP * G0  # m/s  effective exhaust velocity
 TUG_DRY = 191   # kg   dry mass per tug
 TUG_ISP = 1600.0       # s    specific impulse (electric propulsion)
 TUG_VEX = TUG_ISP * G0
-TUG_THR = 0.06        # N    thrust per tug
+TUG_THR = 0.058        # N    thrust per tug
 
 # ── Mission ───────────────────────────────────────────────────────────────────
 N_PHASE_REV = 18       # revolutions on phasing orbit to close 90° phase gap

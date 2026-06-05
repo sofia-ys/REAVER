@@ -34,8 +34,7 @@ warnings.filterwarnings('ignore')
 from config import *
 from reaver_core import (build_transfer_table, compute_tug_spirals, phasing_hohmann,
                          DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
-                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED,
-                         T_PH_RH)
+                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
 # VECTORISED SEQUENCE EVALUATOR
@@ -127,8 +126,8 @@ def evaluate_all_sequences():
     tug_spiral = TUG_TIME[sequences]             # (n_seq, 5)
     tug_arrive = tug_start + tug_spiral          # (n_seq, 5)
 
-    # Handover day = max(ms_return, tug_arrive) + T_PH_RH (MS phases to tug)
-    handover = np.maximum(ms_return[:, None], tug_arrive) + T_PH_RH  # (n_seq,5)
+    # Handover day = max(ms_return, tug_arrive) + T_OPS (RPO close-approach at RH)
+    handover = np.maximum(ms_return[:, None], tug_arrive) + T_OPS    # (n_seq,5)
 
     # Mission completion = last handover
     mission_day = handover.max(axis=1)           # (n_seq,)
@@ -381,88 +380,6 @@ def print_mass_timeline(res, rank, label):
           f"  |  Mission day : {res['mission_day'][rank]:.1f} d")
 
 
-def sensitivity(res):
-    global T_OPS, T_PH_RH, T_LEG, T_PH, DV_LEG
-    best_seq = res['sequences'][0]
-    ms_prop  = res['ms_prop'][0]
-
-    print("\n"+"="*70)
-    print("  SENSITIVITY ANALYSIS  —  best sequence")
-    print("="*70)
-    print("  "+"  ".join(f"{i+1}.{NAMES[best_seq[i]].split('(')[0][:12]}"
-                          for i in range(5)))
-
-    # A) Propellant sweep
-    print(f"\n  A) Propellant budget (T_ops={T_OPS}d fixed):")
-    print(f"  {'Prop':>8} {'Feas':>5} {'Compl d':>9} {'Used kg':>9} {'Margin':>8}")
-    print(f"  {'':─>8} {'':─>5} {'':─>9} {'':─>9} {'':─>8}")
-    nf_s = [RH_IDX] + list(best_seq)
-    nt_s = list(best_seq) + [RH_IDX]
-    best_tug_mwets = TUG_DRY + TUG_MPROP[list(best_seq)]
-    for p in np.linspace(500, 4000, 15):
-        mw = MS_DRY + p + best_tug_mwets.sum()
-        ok = True
-        for i in range(6):
-            mw = mw * np.exp(-DV_LEG[nf_s[i], nt_s[i]] / MS_VEX)
-            if mw < MS_DRY:
-                ok = False; break
-            if i < 5:
-                mw -= best_tug_mwets[i]
-        if ok:
-            prop_used = p - (mw - MS_DRY)
-            margin    = mw - MS_DRY
-            r2 = _eval_single(best_seq, p)
-            print(f"  {p:>8.0f} {'✓':>5} {r2['day']:>9.1f} {prop_used:>9.1f} {margin:>8.1f}")
-        else:
-            print(f"  {p:>8.0f} {'✗':>5} {'—':>9} {'—':>9} {'—':>8}  propellant exhausted")
-
-    # B) Ops time sweep
-    orig_tops = T_OPS
-    print(f"\n  B) Ops time per debris (prop={ms_prop}kg fixed):")
-    print(f"  {'T_ops d':>8} {'Feas':>5} {'Compl d':>9}")
-    print(f"  {'':─>8} {'':─>5} {'':─>9}")
-    for t in np.linspace(1, 14, 14):
-        T_OPS = t
-        r2 = _eval_single(best_seq, ms_prop)
-        if r2['feasible']:
-            print(f"  {t:>8.1f} {'✓':>5} {r2['day']:>9.1f}")
-        else:
-            print(f"  {t:>8.1f} {'✗':>5} {'—':>9}  {r2['reason']}")
-    T_OPS = orig_tops
-
-def _eval_single(seq, ms_prop):
-    """Scalar evaluation of one sequence for sensitivity sweeps."""
-    nodes_from = [RH_IDX] + list(seq)
-    nodes_to   = list(seq) + [RH_IDX]
-    tug_mwets  = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
-    mw = MS_DRY + ms_prop + tug_mwets.sum()
-    day = 0.0
-    for i in range(6):
-        fi, ti = nodes_from[i], nodes_to[i]
-        dv = DV_LEG[fi, ti]
-        mw = mw * np.exp(-dv / MS_VEX)
-        if mw < MS_DRY:
-            return {'feasible': False, 'reason': 'propellant exhausted'}
-        day += T_LEG[fi, ti]
-        if i < 5:
-            day += T_OPS
-            mw -= tug_mwets[i]
-    ms_ret = day
-    tug_starts = []
-    d = 0.0
-    for i in range(6):
-        fi, ti = nodes_from[i], nodes_to[i]
-        d += T_LEG[fi, ti]
-        if i < 5:
-            d += T_OPS
-            tug_starts.append(d)
-    handovers = [max(ms_ret, tug_starts[i] + TUG_TIME[seq[i]]) + T_PH_RH
-                 for i in range(5)]
-    mission_day = max(handovers)
-    feasible = mission_day <= MAX_DAYS
-    return {'feasible': feasible, 'day': mission_day,
-            'reason': f'{mission_day:.1f}d > {MAX_DAYS}d'}
-
 # =============================================================================
 # PROPELLANT COMPARISON TABLE
 # =============================================================================
@@ -534,6 +451,39 @@ def print_tug_analysis():
     print(f"    Propellant    : {TUG_MPROP[wk]:.1f} kg")
     print(f"    Spiral time   : {TUG_TIME[wk]:.1f} days")
     print(f"    Wet mass (w/ debris) : {TUG_MWET[wk]:.1f} kg")
+
+
+# =============================================================================
+# TUG PROPELLANT MARGINS
+# =============================================================================
+
+def print_tug_margins(res, rank):
+    """For each tug in the sequence, show propellant required vs uniform budget."""
+    seq              = res['sequences'][rank]
+    tug_prop_uniform = float(TUG_MPROP[list(seq)].max())
+    nf               = res['n_feasible']
+
+    print("\n" + "="*76)
+    print(f"  TUG PROPELLANT MARGINS — rank {rank+1}/{nf}  "
+          f"(uniform budget: {tug_prop_uniform:.1f} kg/tug)")
+    print("="*76)
+    print(f"  {'Tug':<3} {'Debris':<33} {'Req kg':>8} {'Budget kg':>10} "
+          f"{'Margin kg':>10} {'Margin %':>9}")
+    print(f"  {'':─<3} {'':─<33} {'':─>8} {'':─>10} {'':─>10} {'':─>9}")
+
+    for i, idx in enumerate(seq):
+        req    = float(TUG_MPROP[idx])
+        margin = tug_prop_uniform - req
+        pct    = 100.0 * margin / tug_prop_uniform
+        flag   = '  ← sizing driver' if req == tug_prop_uniform else ''
+        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {tug_prop_uniform:>10.1f} "
+              f"{margin:>10.1f} {pct:>8.1f}%{flag}")
+
+    total_loaded = 5 * tug_prop_uniform
+    total_needed = float(TUG_MPROP[list(seq)].sum())
+    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg  (5 × {tug_prop_uniform:.1f} kg)")
+    print(f"  Total needed  : {total_needed:>8.1f} kg")
+    print(f"  Total margin  : {total_loaded - total_needed:>8.1f} kg")
 
 
 # =============================================================================
@@ -709,8 +659,8 @@ if __name__ == '__main__':
 
         print_mass_timeline(res, wp, f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
 
-        print_target_frequency(res, top_n=res['n_feasible'])
-        sensitivity(res)
+        # print_target_frequency(res, top_n=res['n_feasible'])
+        print_tug_margins(res, wp)
         make_plots(res, wp=wp)
 
     print("\n  Done.")

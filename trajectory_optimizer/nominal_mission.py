@@ -17,8 +17,7 @@ warnings.filterwarnings('ignore')
 
 from config import *
 from reaver_core import (DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
-                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED,
-                         T_PH_RH)
+                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
 # USER INPUT
@@ -165,7 +164,7 @@ def evaluate_sequence(seq):
     ms_return = t
 
     tug_arrive  = np.array([tug_starts[i] + TUG_TIME[seq[i]] for i in range(5)])
-    handover    = np.array([max(ms_return, tug_arrive[i]) + T_PH_RH for i in range(5)])
+    handover    = np.array([max(ms_return, tug_arrive[i]) + T_OPS  for i in range(5)])
     mission_day = handover.max()
     tot_dv      = dv_legs.sum()
 
@@ -301,6 +300,37 @@ def print_mass_timeline(r):
     print(f"\n  Prop required : {r['ms_prop']:.1f} kg"
           f"  |  Final margin : {m - MS_DRY:.1f} kg"
           f"  |  Mission day : {r['mission_day']:.1f} d")
+
+# =============================================================================
+# TUG PROPELLANT MARGINS
+# =============================================================================
+
+def print_tug_margins(r):
+    """For each tug in the sequence, show propellant required vs uniform budget."""
+    seq              = r['seq']
+    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
+
+    print("\n" + "="*76)
+    print(f"  TUG PROPELLANT MARGINS  (uniform budget: {tug_prop_uniform:.1f} kg/tug)")
+    print("="*76)
+    print(f"  {'Tug':<3} {'Debris':<33} {'Req kg':>8} {'Budget kg':>10} "
+          f"{'Margin kg':>10} {'Margin %':>9}")
+    print(f"  {'':─<3} {'':─<33} {'':─>8} {'':─>10} {'':─>10} {'':─>9}")
+
+    for i, idx in enumerate(seq):
+        req    = float(TUG_MPROP[idx])
+        margin = tug_prop_uniform - req
+        pct    = 100.0 * margin / tug_prop_uniform
+        flag   = '  ← sizing driver' if req == tug_prop_uniform else ''
+        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {tug_prop_uniform:>10.1f} "
+              f"{margin:>10.1f} {pct:>8.1f}%{flag}")
+
+    total_loaded = 5 * tug_prop_uniform
+    total_needed = float(TUG_MPROP[list(seq)].sum())
+    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg  (5 × {tug_prop_uniform:.1f} kg)")
+    print(f"  Total needed  : {total_needed:>8.1f} kg")
+    print(f"  Total margin  : {total_loaded - total_needed:>8.1f} kg")
+
 
 # =============================================================================
 # DASHBOARD PLOT
@@ -454,6 +484,7 @@ if __name__ == '__main__':
 
     print_results(r)
     print_mass_timeline(r)
+    print_tug_margins(r)
     make_plot(r)
 
     if not r['feasible']:

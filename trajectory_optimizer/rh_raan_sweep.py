@@ -148,9 +148,6 @@ def evaluate_raan(rh_raan_deg):
     DV_LEG, T_LEG = _rh_transfers(rh_raan_deg)
     TUG_MPROP, TUG_TIME = _tug_data(rh_raan_deg)
 
-    T_tgt_rh = 2*np.pi * np.sqrt(RH_SMA**3/MU)
-    T_PH_RH  = N_PHASE_REV * T_tgt_rh * (1.0 - 1.0/(4.0*N_PHASE_REV)) / DAY
-
     dv_legs = DV_LEG[_from, _to]
     t_legs  = T_LEG[_from,  _to]
 
@@ -168,7 +165,7 @@ def evaluate_raan(rh_raan_deg):
     t_ops_arr   = np.array([T_OPS]*5 + [0.0])
     cum_time    = np.cumsum(t_legs + t_ops_arr[None, :], axis=1)
     tug_arrive  = cum_time[:, :5] + TUG_TIME[_sequences]
-    handover    = np.maximum(cum_time[:, 5:6], tug_arrive) + T_PH_RH
+    handover    = np.maximum(cum_time[:, 5:6], tug_arrive) + T_OPS
     mission_day = handover.max(axis=1)
     feas        = mission_day <= MAX_DAYS   # (N_SEQ,)
 

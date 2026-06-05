@@ -271,7 +271,7 @@ class TestEvaluateSequence:
             assert r['tug_arrive'][i] >= r['tug_starts'][i] - 1e-9
 
     def test_handover_after_ms_return(self):
-        # Handover = max(ms_return, tug_arrive) + T_PH_RH — always ≥ ms_return
+        # Handover = max(ms_return, tug_arrive) + T_OPS — always ≥ ms_return
         r = nm.evaluate_sequence(self.SEQ)
         for i in range(5):
             assert r['handover'][i] >= r['ms_return'] - 1e-9
