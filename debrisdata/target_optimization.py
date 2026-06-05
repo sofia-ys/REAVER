@@ -24,7 +24,7 @@ import numpy as np
 from itertools import combinations, permutations
 import matplotlib
 
-from target_filter import parameter_table
+from target_filter import table
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -63,7 +63,7 @@ RH_INC  = 7.0           # deg
 RH_RAAN = 10.0          # deg
 
 # ── Debris catalogue ────────────────────────────────────────────────────────
-_RAW = parameter_table
+_RAW = table
 # [
 #     #  id    name                         mass_kg  sma_km      inc       raan
 #     (489,  'NSS 5 (Intelsat 803)',        2060.46, 42494.423, 10.4813,  48.1496),

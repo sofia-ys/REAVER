@@ -16,6 +16,7 @@ import time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
+from reaver_core import compute_tug_spirals
 
 # =============================================================================
 # PRE-COMPUTE DEBRIS↔DEBRIS TRANSFER TABLE  (independent of RH RAAN)
@@ -129,26 +130,7 @@ def _rh_transfers(rh_raan_deg):
 
 def _tug_data(rh_raan_deg):
     """Return TUG_MPROP and TUG_TIME arrays for all debris at given RH RAAN."""
-    mprop = np.zeros(N_DEB)
-    ttime = np.zeros(N_DEB)
-    for k in range(N_DEB):
-        m_pl  = TUG_DRY + MASS[k]
-        m_wet = m_pl * 1.35
-        i1,o1 = INC[k], RAAN[k]
-        i2,o2 = RH_INC, rh_raan_deg
-        v1 = np.sqrt(MU/SMA[k]); v2 = np.sqrt(MU/RH_SMA)
-        cos_d = (np.cos(i1*D2R)*np.cos(i2*D2R) +
-                 np.sin(i1*D2R)*np.sin(i2*D2R)*np.cos((o2-o1)*D2R))
-        dth  = np.arccos(np.clip(cos_d, -1, 1))
-        dv_e = np.sqrt(v1**2 + v2**2 - 2*v1*v2*np.cos(np.pi/2*dth))
-        for _ in range(60):
-            mf   = m_wet * np.exp(-dv_e/TUG_VEX)
-            mnew = m_pl + (m_wet - mf)
-            if abs(mnew - m_wet) < 0.05: break
-            m_wet = 0.6*m_wet + 0.4*mnew
-        t_s = (m_wet * TUG_VEX / TUG_THR) * (1 - np.exp(-dv_e/TUG_VEX))
-        mprop[k] = m_wet - m_pl
-        ttime[k] = t_s / DAY
+    tug_dv, ttime, mprop, tug_mwet = compute_tug_spirals(rh_raan_deg)
     return mprop, ttime
 
 
@@ -165,9 +147,6 @@ def evaluate_raan(rh_raan_deg):
     """
     DV_LEG, T_LEG = _rh_transfers(rh_raan_deg)
     TUG_MPROP, TUG_TIME = _tug_data(rh_raan_deg)
-
-    T_tgt_rh = 2*np.pi * np.sqrt(RH_SMA**3/MU)
-    T_PH_RH  = N_PHASE_REV * T_tgt_rh * (1.0 - 1.0/(4.0*N_PHASE_REV)) / DAY
 
     dv_legs = DV_LEG[_from, _to]
     t_legs  = T_LEG[_from,  _to]
@@ -186,7 +165,7 @@ def evaluate_raan(rh_raan_deg):
     t_ops_arr   = np.array([T_OPS]*5 + [0.0])
     cum_time    = np.cumsum(t_legs + t_ops_arr[None, :], axis=1)
     tug_arrive  = cum_time[:, :5] + TUG_TIME[_sequences]
-    handover    = np.maximum(cum_time[:, 5:6], tug_arrive) + T_PH_RH
+    handover    = np.maximum(cum_time[:, 5:6], tug_arrive) + T_OPS
     mission_day = handover.max(axis=1)
     feas        = mission_day <= MAX_DAYS   # (N_SEQ,)
 
@@ -233,7 +212,7 @@ def evaluate_raan(rh_raan_deg):
 # RUN SWEEP
 # =============================================================================
 
-RAAN_SWEEP = np.arange(0, 360, 1)   # 72 values
+RAAN_SWEEP = np.arange(60, 90, 1)   # 72 values
 
 print(f"\n  Sweeping RH RAAN 0°→355° in 5° steps ({len(RAAN_SWEEP)} points)...")
 print(f"  {'RAAN':>6}  {'Combos':>10}  {'Prop best':>10}  {'Prop worst':>11}  {'Time':>6}")
@@ -353,7 +332,7 @@ ax2.set_ylabel(f'Feasible combinations (of {N_COMBOS})')
 ax2.set_title('Feasible combinations vs RH RAAN', color=TC, fontsize=9,
               fontweight='bold', pad=6)
 ax2.legend(fontsize=7.5, facecolor=CB, labelcolor=TC, edgecolor=GR)
-ax2.set_xlim(0, max(RAAN_SWEEP))
+ax2.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
 
 SAVE = r'C:\Projects\DSE\REAVER\trajectory_optimizer\rh_raan_sweep.png'
 plt.tight_layout(rect=[0, 0, 1, 0.97])

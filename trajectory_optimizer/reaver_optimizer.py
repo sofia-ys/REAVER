@@ -32,120 +32,9 @@ import sys, time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
-
-# =============================================================================
-# PRE-COMPUTE PAIRWISE TRANSFER TABLE  (17x17 objects incl. RH)
-# =============================================================================
-
-def build_transfer_table():
-    """
-    Pre-compute all pairwise transfer quantities between all 17 nodes
-    (16 debris + RH).  Returns dicts of arrays indexed [from, to].
-    """
-    N = N_DEB + 1
-    # Allocate
-    dv1   = np.zeros((N, N))   # Hohmann departure burn [m/s]
-    dv2   = np.zeros((N, N))   # Combined circ+plane at apoapsis [m/s]
-    dv_ph = np.zeros((N, N))   # Double-Hohmann phasing [m/s]
-    t_tr  = np.zeros((N, N))   # Hohmann transfer time [days]
-    t_ph  = np.zeros((N, N))   # Phasing time [days]
-
-    for i in range(N):
-        sa = SMA_ALL[i]
-        for j in range(N):
-            if i == j:
-                continue
-            sb = SMA_ALL[j]
-
-            # ── Hohmann ──────────────────────────────────────────────────
-            at   = (sa + sb) / 2.0
-            va   = np.sqrt(MU / sa)
-            vb   = np.sqrt(MU / sb)
-            v_sa = np.sqrt(MU * (2.0/sa - 1.0/at))  # velocity at sa on transfer ellipse
-            v_sb = np.sqrt(MU * (2.0/sb - 1.0/at))  # velocity at sb on transfer ellipse
-            t_tr[i,j] = np.pi * np.sqrt(at**3 / MU) / DAY
-
-            # ── Plane-change angle ───────────────────────────────────────
-            i1 = INC_ALL[i]*D2R;  o1 = RAAN_ALL[i]*D2R
-            i2 = INC_ALL[j]*D2R;  o2 = RAAN_ALL[j]*D2R
-            cos_dth = (np.cos(i1)*np.cos(i2) +
-                       np.sin(i1)*np.sin(i2)*np.cos(o2-o1))
-            dth = np.arccos(np.clip(cos_dth, -1.0, 1.0))
-
-            # ── Combined circularisation + plane change at apoapsis ──────
-            # Always burn at the apoapsis of the transfer ellipse (lowest cost).
-            # sb > sa: ascending transfer, apoapsis is arrival (sb) — combine at sb
-            # sb < sa: descending transfer, apoapsis is departure (sa) — combine at sa
-            if sb > sa:
-                dv1[i,j] = abs(v_sa - va)
-                dv2[i,j] = np.sqrt(v_sb**2 + vb**2 - 2*v_sb*vb*np.cos(dth))
-            else:
-                dv1[i,j] = np.sqrt(v_sa**2 + va**2 - 2*v_sa*va*np.cos(dth))
-                dv2[i,j] = abs(v_sb - vb)
-
-            # ── Double-Hohmann phasing (N_PHASE_REV revs closes 90°) ────
-            T_tgt      = 2*np.pi * np.sqrt(sb**3 / MU)
-            T_ph_orb   = T_tgt * (1.0 - 1.0 / (4.0 * N_PHASE_REV))
-            a_ph       = (MU * (T_ph_orb / (2*np.pi))**2) ** (1.0/3.0)
-            dv_ph[i,j] = 2*abs(np.sqrt(MU/sb) - np.sqrt(MU*(2/sb - 1/a_ph)))
-            t_ph[i,j]  = N_PHASE_REV * T_ph_orb / DAY
-
-    return dv1, dv2, dv_ph, t_tr, t_ph
-
-print("  Pre-computing transfer table...", end=' ', flush=True)
-t0 = time.time()
-DV1, DV2, DV_PH, T_TR, T_PH = build_transfer_table()
-DV_LEG = DV1 + DV2 + DV_PH    # total ΔV per leg [m/s]
-T_LEG  = T_TR + T_PH           # total time per leg [days]
-print(f"done ({time.time()-t0:.2f}s)")
-
-# Pre-compute tug spiral data for each debris object
-# Iterative Edelbaum sizing: m_wet = TUG_DRY + m_debris + m_prop
-print("  Pre-computing tug spirals...", end=' ', flush=True)
-TUG_DV   = np.zeros(N_DEB)
-TUG_TIME = np.zeros(N_DEB)
-TUG_MPROP = np.zeros(N_DEB)
-TUG_MWET  = np.zeros(N_DEB)
-
-for k in range(N_DEB):
-    m_pl = TUG_DRY + MASS[k]
-    m_wet = m_pl * 1.35
-    i1,o1 = INC[k], RAAN[k]
-    i2,o2 = RH_INC, RH_RAAN
-    s1,s2 = SMA[k], RH_SMA
-    v1 = np.sqrt(MU/s1); v2 = np.sqrt(MU/s2)
-    cos_dth = (np.cos(i1*D2R)*np.cos(i2*D2R) +
-               np.sin(i1*D2R)*np.sin(i2*D2R)*np.cos((o2-o1)*D2R))
-    dth = np.arccos(np.clip(cos_dth,-1,1))
-    dv_e = np.sqrt(v1**2 + v2**2 - 2*v1*v2*np.cos(np.pi/2*dth))
-    for _ in range(60):
-        mf   = m_wet * np.exp(-dv_e/TUG_VEX)
-        mp   = m_wet - mf
-        mnew = m_pl + mp
-        if abs(mnew - m_wet) < 0.05: break
-        m_wet = 0.6*m_wet + 0.4*mnew
-    t_s = (m_wet * TUG_VEX / TUG_THR) * (1 - np.exp(-dv_e/TUG_VEX))
-    TUG_DV[k]    = dv_e
-    TUG_TIME[k]  = t_s / DAY
-    TUG_MPROP[k] = m_wet - m_pl
-    TUG_MWET[k]  = m_wet
-
-print(f"done ({time.time()-t0:.2f}s)")
-
-# All tugs are identical, sized for the worst-case debris so any tug can serve any target
-TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max()
-print(f"  Tug loaded wet mass (worst-case sizing): {TUG_WET_LOADED:.1f} kg")
-
-# Phasing time for mothership to meet tug at RH (one leg)
-def phasing_hohmann(sma):
-    T_tgt    = 2*np.pi * np.sqrt(sma**3 / MU)
-    T_ph_orb = T_tgt * (1.0 - 1.0 / (4.0 * N_PHASE_REV))
-    a_ph     = (MU * (T_ph_orb / (2*np.pi))**2) ** (1.0/3.0)
-    dv       = 2*abs(np.sqrt(MU/sma) - np.sqrt(MU*(2/sma - 1/a_ph)))
-    t        = N_PHASE_REV * T_ph_orb / DAY
-    return dv, t
-
-_, T_PH_RH = phasing_hohmann(RH_SMA)
+from reaver_core import (build_transfer_table, compute_tug_spirals, phasing_hohmann,
+                         DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
+                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
 # VECTORISED SEQUENCE EVALUATOR
@@ -188,8 +77,9 @@ def evaluate_all_sequences():
     dv_legs = DV_LEG[from_nodes, to_nodes]   # (n_seq, 6)
     t_legs  = T_LEG[from_nodes,  to_nodes]   # (n_seq, 6)
 
-    # Per-sequence tug wet masses: each tug sized for its actual debris
-    tug_mwet_seq = (TUG_DRY + TUG_MPROP[sequences]).astype(np.float64)  # (n_seq, 5)
+    # Per-sequence tug wet masses: all 5 tugs sized to the worst-case debris in each sequence
+    tug_prop_uniform = TUG_MPROP[sequences].max(axis=1, keepdims=True)   # (n_seq, 1)
+    tug_mwet_seq = (TUG_DRY + np.repeat(tug_prop_uniform, 5, axis=1)).astype(np.float64)  # (n_seq, 5)
 
     # Backward pass: required initial mass so final mass = MS_DRY exactly
     m_req = np.full(n_seq, MS_DRY, dtype=np.float64)
@@ -236,8 +126,8 @@ def evaluate_all_sequences():
     tug_spiral = TUG_TIME[sequences]             # (n_seq, 5)
     tug_arrive = tug_start + tug_spiral          # (n_seq, 5)
 
-    # Handover day = max(ms_return, tug_arrive) + T_PH_RH (MS phases to tug)
-    handover = np.maximum(ms_return[:, None], tug_arrive) + T_PH_RH  # (n_seq,5)
+    # Handover day = max(ms_return, tug_arrive) + T_OPS (RPO close-approach at RH)
+    handover = np.maximum(ms_return[:, None], tug_arrive) + T_OPS    # (n_seq,5)
 
     # Mission completion = last handover
     mission_day = handover.max(axis=1)           # (n_seq,)
@@ -294,7 +184,7 @@ def evaluate_all_sequences():
     order  = np.argsort(score)
     sel    = c_idx[order]
 
-    tug_prop_sel = TUG_MPROP[f_seq[sel]].sum(axis=1)
+    tug_prop_sel = TUG_MPROP[f_seq[sel]].max(axis=1) * 5   # uniform sizing: 5× worst tug in sequence
     results = {
         'sequences':   f_seq[sel],
         'score':       score[order],
@@ -366,13 +256,15 @@ def print_top(res, n=3, start=0, label=None):
               f"{'Arrive d':>9} {'Handover':>9}")
         print(f"  {'':─<3} {'':─<28} {'':─>8} {'':─>8} "
               f"{'':─>9} {'':─>9} {'':─>9}")
+        tug_prop_uniform = TUG_MPROP[list(seq)].max()
         for i, idx in enumerate(seq):
+            worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == tug_prop_uniform else ''
             print(f"  {i+1:<3} {NAMES[idx]:<28} "
                   f"{TUG_DV[idx]:>7.1f}m "
-                  f"{TUG_MPROP[idx]:>7.1f}kg "
+                  f"{tug_prop_uniform:>7.1f}kg "
                   f"{TUG_TIME[idx]:>8.1f}d "
                   f"{res['tug_arrive'][rank,i]:>8.1f}d "
-                  f"{res['handover'][rank,i]:>8.1f}d")
+                  f"{res['handover'][rank,i]:>8.1f}d{worst_flag}")
 
         print(f"\n  ┌────────────────────────────────────────────────────────┐")
         print(f"  │  Mothership ΔV total     : {res['total_dv'][rank]:>8.1f} m/s             │")
@@ -420,7 +312,7 @@ def print_target_frequency(res, top_n=50):
 def print_mass_timeline(res, rank, label):
     seq       = res['sequences'][rank]
     ms_prop   = res['ms_prop'][rank]
-    tug_mwets = TUG_DRY + TUG_MPROP[list(seq)]
+    tug_mwets = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
     nf_       = [RH_IDX] + list(seq)
     nt_       = list(seq) + [RH_IDX]
     m0        = MS_DRY + ms_prop + tug_mwets.sum()
@@ -487,88 +379,6 @@ def print_mass_timeline(res, rank, label):
           f"  |  Final margin : {m - MS_DRY:.1f} kg"
           f"  |  Mission day : {res['mission_day'][rank]:.1f} d")
 
-
-def sensitivity(res):
-    global T_OPS, T_PH_RH, T_LEG, T_PH, DV_LEG
-    best_seq = res['sequences'][0]
-    ms_prop  = res['ms_prop'][0]
-
-    print("\n"+"="*70)
-    print("  SENSITIVITY ANALYSIS  —  best sequence")
-    print("="*70)
-    print("  "+"  ".join(f"{i+1}.{NAMES[best_seq[i]].split('(')[0][:12]}"
-                          for i in range(5)))
-
-    # A) Propellant sweep
-    print(f"\n  A) Propellant budget (T_ops={T_OPS}d fixed):")
-    print(f"  {'Prop':>8} {'Feas':>5} {'Compl d':>9} {'Used kg':>9} {'Margin':>8}")
-    print(f"  {'':─>8} {'':─>5} {'':─>9} {'':─>9} {'':─>8}")
-    nf_s = [RH_IDX] + list(best_seq)
-    nt_s = list(best_seq) + [RH_IDX]
-    best_tug_mwets = TUG_DRY + TUG_MPROP[list(best_seq)]
-    for p in np.linspace(500, 4000, 15):
-        mw = MS_DRY + p + best_tug_mwets.sum()
-        ok = True
-        for i in range(6):
-            mw = mw * np.exp(-DV_LEG[nf_s[i], nt_s[i]] / MS_VEX)
-            if mw < MS_DRY:
-                ok = False; break
-            if i < 5:
-                mw -= best_tug_mwets[i]
-        if ok:
-            prop_used = p - (mw - MS_DRY)
-            margin    = mw - MS_DRY
-            r2 = _eval_single(best_seq, p)
-            print(f"  {p:>8.0f} {'✓':>5} {r2['day']:>9.1f} {prop_used:>9.1f} {margin:>8.1f}")
-        else:
-            print(f"  {p:>8.0f} {'✗':>5} {'—':>9} {'—':>9} {'—':>8}  propellant exhausted")
-
-    # B) Ops time sweep
-    orig_tops = T_OPS
-    print(f"\n  B) Ops time per debris (prop={ms_prop}kg fixed):")
-    print(f"  {'T_ops d':>8} {'Feas':>5} {'Compl d':>9}")
-    print(f"  {'':─>8} {'':─>5} {'':─>9}")
-    for t in np.linspace(1, 14, 14):
-        T_OPS = t
-        r2 = _eval_single(best_seq, ms_prop)
-        if r2['feasible']:
-            print(f"  {t:>8.1f} {'✓':>5} {r2['day']:>9.1f}")
-        else:
-            print(f"  {t:>8.1f} {'✗':>5} {'—':>9}  {r2['reason']}")
-    T_OPS = orig_tops
-
-def _eval_single(seq, ms_prop):
-    """Scalar evaluation of one sequence for sensitivity sweeps."""
-    nodes_from = [RH_IDX] + list(seq)
-    nodes_to   = list(seq) + [RH_IDX]
-    tug_mwets  = TUG_DRY + TUG_MPROP[list(seq)]
-    mw = MS_DRY + ms_prop + tug_mwets.sum()
-    day = 0.0
-    for i in range(6):
-        fi, ti = nodes_from[i], nodes_to[i]
-        dv = DV_LEG[fi, ti]
-        mw = mw * np.exp(-dv / MS_VEX)
-        if mw < MS_DRY:
-            return {'feasible': False, 'reason': 'propellant exhausted'}
-        day += T_LEG[fi, ti]
-        if i < 5:
-            day += T_OPS
-            mw -= tug_mwets[i]
-    ms_ret = day
-    tug_starts = []
-    d = 0.0
-    for i in range(6):
-        fi, ti = nodes_from[i], nodes_to[i]
-        d += T_LEG[fi, ti]
-        if i < 5:
-            d += T_OPS
-            tug_starts.append(d)
-    handovers = [max(ms_ret, tug_starts[i] + TUG_TIME[seq[i]]) + T_PH_RH
-                 for i in range(5)]
-    mission_day = max(handovers)
-    feasible = mission_day <= MAX_DAYS
-    return {'feasible': feasible, 'day': mission_day,
-            'reason': f'{mission_day:.1f}d > {MAX_DAYS}d'}
 
 # =============================================================================
 # PROPELLANT COMPARISON TABLE
@@ -644,6 +454,39 @@ def print_tug_analysis():
 
 
 # =============================================================================
+# TUG PROPELLANT MARGINS
+# =============================================================================
+
+def print_tug_margins(res, rank):
+    """For each tug in the sequence, show propellant required vs uniform budget."""
+    seq              = res['sequences'][rank]
+    tug_prop_uniform = float(TUG_MPROP[list(seq)].max())
+    nf               = res['n_feasible']
+
+    print("\n" + "="*76)
+    print(f"  TUG PROPELLANT MARGINS — rank {rank+1}/{nf}  "
+          f"(uniform budget: {tug_prop_uniform:.1f} kg/tug)")
+    print("="*76)
+    print(f"  {'Tug':<3} {'Debris':<33} {'Req kg':>8} {'Budget kg':>10} "
+          f"{'Margin kg':>10} {'Margin %':>9}")
+    print(f"  {'':─<3} {'':─<33} {'':─>8} {'':─>10} {'':─>10} {'':─>9}")
+
+    for i, idx in enumerate(seq):
+        req    = float(TUG_MPROP[idx])
+        margin = tug_prop_uniform - req
+        pct    = 100.0 * margin / tug_prop_uniform
+        flag   = '  ← sizing driver' if req == tug_prop_uniform else ''
+        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {tug_prop_uniform:>10.1f} "
+              f"{margin:>10.1f} {pct:>8.1f}%{flag}")
+
+    total_loaded = 5 * tug_prop_uniform
+    total_needed = float(TUG_MPROP[list(seq)].sum())
+    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg  (5 × {tug_prop_uniform:.1f} kg)")
+    print(f"  Total needed  : {total_needed:>8.1f} kg")
+    print(f"  Total margin  : {total_loaded - total_needed:>8.1f} kg")
+
+
+# =============================================================================
 # PLOTTING
 # =============================================================================
 
@@ -652,6 +495,9 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     BG='#0d1117'; CB='#161b22'; TC='#c9d1d9'; MU_='#8b949e'; GR='#21262d'
     A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'; A5='#ffa657'
     LC=[A1,A2,A4,A3,A5,'#79c0ff']; TC_=[A1,A2,A4,A3,A5]
+
+    nf = res['n_feasible']
+    _wp = int(np.argmax(res['prop_used'])) if wp is None else wp   # worst MS prop rank
 
     fig = plt.figure(figsize=(20,11)); fig.patch.set_facecolor(BG)
     gs  = GridSpec(2,3,figure=fig,hspace=0.52,wspace=0.36,
@@ -665,34 +511,35 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
         ax.grid(True,color=GR,lw=0.5,alpha=0.7)
         if title: ax.set_title(title,color=TC,fontsize=9,fontweight='bold',pad=8)
 
-    fig.text(0.5,0.980,'REAVER Mission Optimizer — Results Dashboard',
+    fig.text(0.5,0.980,'REAVER Mission Optimizer — Results Dashboard (Worst-Case MS Propellant)',
              ha='center',color=TC,fontsize=15,fontweight='bold')
     fig.text(0.5,0.958,
              f'MS: dry {MS_DRY}kg, Isp={MS_ISP}s  |  '
              f'Tug: dry {TUG_DRY}kg, Isp={TUG_ISP}s, T={TUG_THR}N  |  '
-             f'T_ops={T_OPS}d/debris  |  Hohmann phasing {N_PHASE_REV} revs  |  ≤{MAX_DAYS:.0f}d',
+             f'T_ops={T_OPS}d/debris  |  Hohmann phasing {N_PHASE_REV} revs  |  ≤{MAX_DAYS:.0f}d  |  '
+             f'Rank {_wp+1}/{nf} (worst MS prop)',
              ha='center',color=MU_,fontsize=8)
 
-    seq0 = res['sequences'][0]
+    seqW = res['sequences'][_wp]
 
     # ── 1. Mission timeline ribbon (full width) ───────────────────────────
     ax5 = fig.add_subplot(gs[0,:])
-    sax(ax5,'#1 solution — full mission timeline')
+    sax(ax5,f'Worst-case MS prop (rank {_wp+1}/{nf}) — full mission timeline')
     events=[(0,'Depart RH',MU_)]
     cum=0.0
-    for i,idx in enumerate(seq0):
-        fi=[RH_IDX]+list(seq0)
-        ti=list(seq0)+[RH_IDX]
+    for i,idx in enumerate(seqW):
+        fi=[RH_IDX]+list(seqW)
+        ti=list(seqW)+[RH_IDX]
         cum+=T_TR[fi[i],ti[i]]+T_PH[fi[i],ti[i]]
         events.append((cum,f'Arr.{i+1}:{NAMES[idx].split("(")[0][:9]}',LC[i]))
         cum+=T_OPS
         events.append((cum,f'Handoff Tug{i+1}',TC_[i]))
-    cum+=T_TR[seq0[-1],RH_IDX]+T_PH[seq0[-1],RH_IDX]
+    cum+=T_TR[seqW[-1],RH_IDX]+T_PH[seqW[-1],RH_IDX]
     events.append((cum,'MS@RH',A2))
     for i in range(5):
-        events.append((res['handover'][0,i],
-                       f'HO:{NAMES[seq0[i]].split("(")[0][:9]}',A4))
-    events.append((res['mission_day'][0],'✓ DONE',A3))
+        events.append((res['handover'][_wp,i],
+                       f'HO:{NAMES[seqW[i]].split("(")[0][:9]}',A4))
+    events.append((res['mission_day'][_wp],'✓ DONE',A3))
     events.sort(key=lambda x:x[0])
     for j,(day,label,col) in enumerate(events):
         ax5.axvline(day,color=col,alpha=0.5,lw=0.9)
@@ -707,26 +554,26 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
 
     # ── 2. Tug spiral Gantt ───────────────────────────────────────────────
     ax4 = fig.add_subplot(gs[1,0])
-    sax(ax4,'#1 solution — tug spiral Gantt')
-    for i,idx in enumerate(seq0):
-        s=res['tug_start'][0,i]; e=res['tug_arrive'][0,i]
+    sax(ax4,f'Worst-case MS prop (rank {_wp+1}/{nf}) — tug spiral Gantt')
+    for i,idx in enumerate(seqW):
+        s=res['tug_start'][_wp,i]; e=res['tug_arrive'][_wp,i]
         ax4.barh(i,e-s,left=s,color=TC_[i],alpha=0.8,ec='none',height=0.55)
         ax4.text(e+1.5,i,f'd{e:.0f}',va='center',fontsize=7,color=TC_[i])
-    ax4.axvline(res['ms_return'][0],color='white',lw=1.2,ls=':',alpha=0.7,
-                label=f"MS@RH d{res['ms_return'][0]:.0f}")
+    ax4.axvline(res['ms_return'][_wp],color='white',lw=1.2,ls=':',alpha=0.7,
+                label=f"MS@RH d{res['ms_return'][_wp]:.0f}")
     ax4.axvline(MAX_DAYS,color=A3,lw=1.3,ls='--',alpha=0.85,label='365d')
     ax4.set_yticks(range(5))
-    ax4.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seq0],fontsize=7)
+    ax4.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seqW],fontsize=7)
     ax4.set_xlabel('Mission day')
     ax4.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
 
     # ── 3. Mothership mass vs time ────────────────────────────────────────
     ax_m = fig.add_subplot(gs[1,1])
-    sax(ax_m,'#1 solution — mothership mass vs time')
-    tug_mwets0 = TUG_DRY + TUG_MPROP[list(seq0)]
-    ms_wet0 = MS_DRY + res['ms_prop'][0] + tug_mwets0.sum()
-    nf_m = [RH_IDX] + list(seq0)
-    nt_m = list(seq0) + [RH_IDX]
+    sax(ax_m,f'Worst-case MS prop (rank {_wp+1}/{nf}) — mothership mass vs time')
+    tug_mwets0 = np.full(5, TUG_DRY + TUG_MPROP[list(seqW)].max())
+    ms_wet0 = MS_DRY + res['ms_prop'][_wp] + tug_mwets0.sum()
+    nf_m = [RH_IDX] + list(seqW)
+    nt_m = list(seqW) + [RH_IDX]
     m = ms_wet0
     t = 0.0
     t_pts=[t]; m_pts=[m]
@@ -756,8 +603,6 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     ax_m.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
 
     # ── 4. All-combinations scatter: ΔV vs mission day ───────────────────
-    nf = res['n_feasible']
-    _wp = int(np.argmax(res['prop_used'])) if wp is None else wp
     ax6 = fig.add_subplot(gs[1,2])
     sax(ax6, 'All combinations — total ΔV vs mission day')
     sc = ax6.scatter(res['mission_day'], res['total_dv'],
@@ -766,7 +611,7 @@ def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reav
     for rank, col, marker, lbl in [
         (0,      A2, '*', f'Best (rank 1)'),
         (nf - 1, A3, '*', f'Worst score (rank {nf})'),
-        (_wp,    A5, 'D', f'Worst prop (rank {_wp+1})'),
+        (_wp,    A5, 'D', f'Worst MS prop (rank {_wp+1})'),
     ]:
         ax6.scatter(res['mission_day'][rank], res['total_dv'][rank],
                     color=col, s=130, marker=marker, zorder=5,
@@ -807,26 +652,15 @@ if __name__ == '__main__':
         wp  = int(np.argmax(res['prop_used']))
         wtp = int(np.argmax(res['total_prop']))
 
-        print_top(res, n=1, start=0,
-                  label=f"BEST CASE (rank 1/{nf})")
-        print_top(res, n=1, start=nf - 1,
-                  label=f"WORST CASE — combined score (rank {nf}/{nf})")
         print_top(res, n=1, start=wp,
                   label=f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
-        if wtp != wp:
-            print_top(res, n=1, start=wtp,
-                      label=f"WORST CASE — total propellant (rank {wtp+1}/{nf})")
 
         print_prop_comparison(res, wp, wtp)
 
-        print_mass_timeline(res, 0,      f"BEST CASE (rank 1/{nf})")
-        print_mass_timeline(res, nf - 1, f"WORST CASE — combined score (rank {nf}/{nf})")
-        print_mass_timeline(res, wp,     f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
-        if wtp != wp:
-            print_mass_timeline(res, wtp, f"WORST CASE — total propellant (rank {wtp+1}/{nf})")
+        print_mass_timeline(res, wp, f"WORST CASE — MS propellant (rank {wp+1}/{nf})")
 
-        print_target_frequency(res, top_n=res['n_feasible'])
-        # sensitivity(res)
+        # print_target_frequency(res, top_n=res['n_feasible'])
+        print_tug_margins(res, wp)
         make_plots(res, wp=wp)
 
     print("\n  Done.")
