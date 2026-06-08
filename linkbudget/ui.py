@@ -1,13 +1,14 @@
 import pygame as pg
 import pandas as pd
 import sys
+import os
 from link import uplink
 from link import downlink
 
 pg.init()
 
 # reading excel file
-teleD = pd.read_excel("telemetryData.xlsx", sheet_name="Sheet1", engine='openpyxl')
+teleD = pd.read_excel(os.path.join(os.path.dirname(os.path.abspath(__file__)), "telemetryData.xlsx"), sheet_name="Sheet1", engine='openpyxl')
 
 # putting data into list
 total_spacecraft_power = teleD.iloc[0, 1:6].tolist()  

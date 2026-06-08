@@ -35,6 +35,15 @@ RH_SMA  = 42878.0e3    # m    SMA  (super-synchronous graveyard orbit)
 RH_INC  = 7.0          # deg  inclination
 RH_RAAN = 64.0         # deg  RAAN  (optimal value from rh_raan_sweep.py)
 
+# ── RPO ΔV constants (close-range proximity ops) ─────────────────────────────
+# Produced by the RPO simulation (run:  python trajectory_optimizer/rpo_run.py).
+# Kept split: each has an independent physical driver and is updated separately.
+DV_RPO_DEBRIS   = 5.1    # m/s  MS alone, tumbling 2700 kg @ 1 rpm (+50% abort)
+DV_RPO_DETUMBLE = 1.6    # m/s  combined body momentum dump (AOCS sizing, REQ-ACS-M4)
+DV_RPO_RH_MEET  = 1.0    # m/s  MS alone meets tug+debris within 500 m of RH
+DV_RPO_RH_DOCK  = 2.1    # m/s  MS+tug+debris to RH port (combined-body CoM offset)
+DV_RPO_RH       = DV_RPO_RH_MEET + DV_RPO_RH_DOCK   # m/s  total per RH cycle
+
 # ── Debris catalogue ──────────────────────────────────────────────────────────
 # Columns:
 #   norad_id, name, mass_kg,
@@ -81,6 +90,8 @@ __all__ = [
     'TUG_DRY', 'TUG_ISP', 'TUG_VEX', 'TUG_THR',
     'N_PHASE_REV', 'T_OPS', 'MAX_DAYS', 'SOFT_MASS',
     'RH_SMA', 'RH_INC', 'RH_RAAN',
+    'DV_RPO_DEBRIS', 'DV_RPO_DETUMBLE', 'DV_RPO_RH_MEET',
+    'DV_RPO_RH_DOCK', 'DV_RPO_RH',
     '_RAW', 'N_DEB', 'IDS', 'NAMES', 'MASS', 'SMA', 'INC', 'RAAN',
     'RH_IDX', 'SMA_ALL', 'INC_ALL', 'RAAN_ALL', 'MASS_ALL',
 ]
