@@ -16,67 +16,8 @@ import time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
-
-# =============================================================================
-# TRANSFER TABLE
-# =============================================================================
-
-def build_transfer_table():
-    N = N_DEB + 1
-    dv1 = np.zeros((N, N)); dv2 = np.zeros((N, N))
-    dv_ph = np.zeros((N, N)); t_tr = np.zeros((N, N)); t_ph = np.zeros((N, N))
-    for i in range(N):
-        sa = SMA_ALL[i]; ia = INC_ALL[i]*D2R; oa = RAAN_ALL[i]*D2R
-        va = np.sqrt(MU/sa)
-        for j in range(N):
-            if i == j: continue
-            sb = SMA_ALL[j]; ib = INC_ALL[j]*D2R; ob = RAAN_ALL[j]*D2R
-            vb = np.sqrt(MU/sb)
-            at   = (sa+sb)/2.0
-            v_sa = np.sqrt(MU*(2/sa - 1/at))
-            v_sb = np.sqrt(MU*(2/sb - 1/at))
-            t_tr[i,j] = np.pi*np.sqrt(at**3/MU)/DAY
-            cos_dth = np.cos(ia)*np.cos(ib) + np.sin(ia)*np.sin(ib)*np.cos(ob-oa)
-            dth = np.arccos(np.clip(cos_dth, -1.0, 1.0))
-            if sb > sa:
-                dv1[i,j] = abs(v_sa - va)
-                dv2[i,j] = np.sqrt(v_sb**2 + vb**2 - 2*v_sb*vb*np.cos(dth))
-            else:
-                dv1[i,j] = np.sqrt(v_sa**2 + va**2 - 2*v_sa*va*np.cos(dth))
-                dv2[i,j] = abs(v_sb - vb)
-            T_tgt    = 2*np.pi*np.sqrt(sb**3/MU)
-            T_ph_orb = T_tgt*(1.0 - 1.0/(4.0*N_PHASE_REV))
-            a_ph     = (MU*(T_ph_orb/(2*np.pi))**2)**(1.0/3.0)
-            dv_ph[i,j] = 2*abs(np.sqrt(MU/sb) - np.sqrt(MU*(2/sb - 1/a_ph)))
-            t_ph[i,j]  = N_PHASE_REV*T_ph_orb/DAY
-    return dv1, dv2, dv_ph, t_tr, t_ph
-
-print("  Building transfer table...", end=' ', flush=True)
-DV1, DV2, DV_PH, T_TR, T_PH = build_transfer_table()
-DV_LEG = DV1 + DV2 + DV_PH
-T_LEG  = T_TR + T_PH
-print("done")
-
-# ── Tug spirals ───────────────────────────────────────────────────────────────
-TUG_DV = np.zeros(N_DEB); TUG_TIME = np.zeros(N_DEB)
-TUG_MPROP = np.zeros(N_DEB); TUG_MWET = np.zeros(N_DEB)
-for k in range(N_DEB):
-    m_pl  = TUG_DRY + MASS[k]; m_wet = m_pl*1.35
-    i1,o1 = INC[k], RAAN[k]; i2,o2 = RH_INC, RH_RAAN
-    v1 = np.sqrt(MU/SMA[k]); v2 = np.sqrt(MU/RH_SMA)
-    cos_d = (np.cos(i1*D2R)*np.cos(i2*D2R) +
-             np.sin(i1*D2R)*np.sin(i2*D2R)*np.cos((o2-o1)*D2R))
-    dv_e = np.sqrt(v1**2 + v2**2 - 2*v1*v2*np.cos(np.pi/2*np.arccos(np.clip(cos_d,-1,1))))
-    for _ in range(60):
-        mf = m_wet*np.exp(-dv_e/TUG_VEX); mnew = m_pl + (m_wet-mf)
-        if abs(mnew-m_wet) < 0.05: break
-        m_wet = 0.6*m_wet + 0.4*mnew
-    t_s = (m_wet*TUG_VEX/TUG_THR)*(1 - np.exp(-dv_e/TUG_VEX))
-    TUG_DV[k]=dv_e; TUG_TIME[k]=t_s/DAY; TUG_MPROP[k]=m_wet-m_pl; TUG_MWET[k]=m_wet
-TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max()
-
-T_tgt_rh = 2*np.pi*np.sqrt(RH_SMA**3/MU)
-T_PH_RH  = N_PHASE_REV*T_tgt_rh*(1.0 - 1.0/(4.0*N_PHASE_REV))/DAY
+from reaver_core import (DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
+                         TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
 # USER INPUT
@@ -190,7 +131,8 @@ def optimise_ordering(debris_indices):
 def evaluate_sequence(seq):
     nf = [RH_IDX] + list(seq)
     nt = list(seq) + [RH_IDX]
-    tug_mwets = TUG_DRY + TUG_MPROP[list(seq)]
+    tug_prop_uniform = float(TUG_MPROP[list(seq)].max())   # worst-case tug sets the standard
+    tug_mwets = np.full(5, TUG_DRY + tug_prop_uniform)
 
     # Backward pass: propellant sized to end at MS_DRY exactly
     m = MS_DRY
@@ -222,7 +164,7 @@ def evaluate_sequence(seq):
     ms_return = t
 
     tug_arrive  = np.array([tug_starts[i] + TUG_TIME[seq[i]] for i in range(5)])
-    handover    = np.array([max(ms_return, tug_arrive[i]) + T_PH_RH for i in range(5)])
+    handover    = np.array([max(ms_return, tug_arrive[i]) + T_OPS  for i in range(5)])
     mission_day = handover.max()
     tot_dv      = dv_legs.sum()
 
@@ -279,15 +221,17 @@ def print_results(r):
           f"{'Spiral d':>9} {'Start d':>8} {'Arrive d':>9} {'Handover':>9}")
     print(f"  {'':─<3} {'':─<28} {'':─>8} {'':─>8} "
           f"{'':─>9} {'':─>8} {'':─>9} {'':─>9}")
+    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
     for i, idx in enumerate(seq):
+        worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == TUG_MPROP[list(seq)].max() else ''
         print(f"  {i+1:<3} {NAMES[idx]:<28} "
-              f"{TUG_DV[idx]:>7.1f}m {TUG_MPROP[idx]:>7.1f}kg "
+              f"{TUG_DV[idx]:>7.1f}m {tug_prop_uniform:>7.1f}kg "
               f"{TUG_TIME[idx]:>8.1f}d {r['tug_starts'][i]:>7.1f}d "
-              f"{r['tug_arrive'][i]:>8.1f}d {r['handover'][i]:>8.1f}d")
+              f"{r['tug_arrive'][i]:>8.1f}d {r['handover'][i]:>8.1f}d{worst_flag}")
 
     # Summary box
     feas_str = "✓ FEASIBLE" if r['feasible'] else "✗ EXCEEDS 365 d"
-    tug_prop_total = TUG_MPROP[list(seq)].sum()
+    tug_prop_total = float((r['tug_mwets'] - TUG_DRY).sum())
     print(f"\n  ┌{'─'*58}┐")
     print(f"  │  Mothership ΔV total      : {r['tot_dv']:>8.1f} m/s                 │")
     print(f"  │  MS propellant used       : {r['ms_prop']:>8.1f} kg                  │")
@@ -356,6 +300,37 @@ def print_mass_timeline(r):
     print(f"\n  Prop required : {r['ms_prop']:.1f} kg"
           f"  |  Final margin : {m - MS_DRY:.1f} kg"
           f"  |  Mission day : {r['mission_day']:.1f} d")
+
+# =============================================================================
+# TUG PROPELLANT MARGINS
+# =============================================================================
+
+def print_tug_margins(r):
+    """For each tug in the sequence, show propellant required vs uniform budget."""
+    seq              = r['seq']
+    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
+
+    print("\n" + "="*76)
+    print(f"  TUG PROPELLANT MARGINS  (uniform budget: {tug_prop_uniform:.1f} kg/tug)")
+    print("="*76)
+    print(f"  {'Tug':<3} {'Debris':<33} {'Req kg':>8} {'Budget kg':>10} "
+          f"{'Margin kg':>10} {'Margin %':>9}")
+    print(f"  {'':─<3} {'':─<33} {'':─>8} {'':─>10} {'':─>10} {'':─>9}")
+
+    for i, idx in enumerate(seq):
+        req    = float(TUG_MPROP[idx])
+        margin = tug_prop_uniform - req
+        pct    = 100.0 * margin / tug_prop_uniform
+        flag   = '  ← sizing driver' if req == tug_prop_uniform else ''
+        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {tug_prop_uniform:>10.1f} "
+              f"{margin:>10.1f} {pct:>8.1f}%{flag}")
+
+    total_loaded = 5 * tug_prop_uniform
+    total_needed = float(TUG_MPROP[list(seq)].sum())
+    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg  (5 × {tug_prop_uniform:.1f} kg)")
+    print(f"  Total needed  : {total_needed:>8.1f} kg")
+    print(f"  Total margin  : {total_loaded - total_needed:>8.1f} kg")
+
 
 # =============================================================================
 # DASHBOARD PLOT
@@ -509,6 +484,7 @@ if __name__ == '__main__':
 
     print_results(r)
     print_mass_timeline(r)
+    print_tug_margins(r)
     make_plot(r)
 
     if not r['feasible']:
