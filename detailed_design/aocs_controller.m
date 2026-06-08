@@ -50,3 +50,18 @@ R = eye(m);
 K_aug = lqr(Ai, Bi, Q_i, R);  
 Kx = K_aug(:,1:n);
 Ki_z = K_aug(:, n+1:end);         
+
+
+
+% modelling disturbances
+r_geo = 42164e3;
+n = sqrt(3.986004418e14 / r_geo^3);   % rad/s (~7.292e-5)
+t = (0:60:24*3600)';                  % sample every 60 s for 1 day
+phi0 = 0;                             % initial phase (rad)
+
+pos = [ r_geo*cos(n*t + phi0), ...
+    r_geo*sin(n*t + phi0), ...
+    zeros(size(t)) ];             % Nx3 matrix, units meters
+
+% To use in Simulink: create timeseries
+pos_ts = timeseries(pos, t);
