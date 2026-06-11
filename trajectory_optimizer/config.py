@@ -94,7 +94,13 @@ __all__ = [
     'DV_RPO_RH_DOCK', 'DV_RPO_RH',
     '_RAW', 'N_DEB', 'IDS', 'NAMES', 'MASS', 'SMA', 'INC', 'RAAN',
     'RH_IDX', 'SMA_ALL', 'INC_ALL', 'RAAN_ALL', 'MASS_ALL',
+    'MS_THR', 'MS_BURN_S', 'MS_WET_ESTIMATE',
 ]
 
 # 'ECC', 'AOP', 'MA', 'PERIOD', 'APOAPSIS', 'PERIAPSIS', 'EPOCH', 'LAUNCH_DATE'
 # 'ECC_ALL', 'AOP_ALL', 'MA_ALL',
+
+# ── Mothership finite-burn model ──────────────────────────────────────────────
+MS_THR   = 64.0        # N, thruster force
+MS_BURN_S = 38 * 60    # s, max single firing duration
+MS_WET_ESTIMATE = 4000.0  # kg, representative mid-mission mass for table pre-computation

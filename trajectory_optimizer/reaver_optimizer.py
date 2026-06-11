@@ -33,7 +33,8 @@ warnings.filterwarnings('ignore')
 
 from config import *
 from reaver_core import (build_transfer_table, compute_tug_spirals, phasing_hohmann,
-                         DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
+                         DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG, T_LEG_FINITE,
+                         finite_burn_time, finite_burn_info,
                          TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
@@ -75,7 +76,7 @@ def evaluate_all_sequences():
 
     # ΔV and time for each of the 6 legs
     dv_legs = DV_LEG[from_nodes, to_nodes]   # (n_seq, 6)
-    t_legs  = T_LEG[from_nodes,  to_nodes]   # (n_seq, 6)
+    t_legs  = T_LEG_FINITE[from_nodes, to_nodes]   # (n_seq, 6)
 
     # Per-sequence tug wet masses: all 5 tugs sized to the worst-case debris in each sequence
     tug_prop_uniform = TUG_MPROP[sequences].max(axis=1, keepdims=True)   # (n_seq, 1)
@@ -348,24 +349,31 @@ def print_mass_timeline(res, rank, label):
         d1, d2, dph = DV1[fi,ti], DV2[fi,ti], DV_PH[fi,ti]
 
         # Burn 1 — departure
+        m_b1 = m
         dm = -m * (1 - np.exp(-d1 / MS_VEX))
-        b1 = (f"  Burn 1  Hohmann dep      ({d1:6.1f} m/s)" if asc else
-              f"  Burn 1  dep + plane chg  ({d1:6.1f} m/s)")
+        nf1, no1 = finite_burn_info(d1, m_b1)
+        b1 = (f"  Burn 1  Hohmann dep      ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)" if asc else
+              f"  Burn 1  dep + plane chg  ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)")
         prow(t, b1, dm)
+        t += finite_burn_time(d1, m_b1, SMA_ALL[fi])
 
         t += T_TR[fi, ti]
 
         # Burn 2 — at apoapsis / arrival
+        m_b2 = m
         dm = -m * (1 - np.exp(-d2 / MS_VEX))
-        b2 = (f"  Burn 2  circ + plane chg ({d2:6.1f} m/s)" if asc else
-              f"  Burn 2  circularise      ({d2:6.1f} m/s)")
+        nf2, no2 = finite_burn_info(d2, m_b2)
+        b2 = (f"  Burn 2  circ + plane chg ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)" if asc else
+              f"  Burn 2  circularise      ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)")
         prow(t, b2, dm)
+        t += finite_burn_time(d2, m_b2, SMA_ALL[ti])
 
         # Burn 3 — phasing
-        dm = -m * (1 - np.exp(-dph / MS_VEX))
-        prow(t, f"  Burn 3  phasing          ({dph:6.1f} m/s)", dm)
-
-        t += T_PH[fi, ti]
+        m_b3 = m
+        dm_ph = -m * (1 - np.exp(-dph / MS_VEX))
+        nf3, no3 = finite_burn_info(dph, m_b3)
+        prow(t, f"  Burn 3  phasing          ({dph:6.1f} m/s | {nf3} fires, {no3} orbits)", dm_ph)
+        t += finite_burn_time(dph, m_b3, SMA_ALL[ti])
 
         if i < 5:
             prow(t, f"  Rendezvous: {dest}", None)
