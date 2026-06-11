@@ -30,8 +30,8 @@ the correct posture for the worst-case AOCS sizing the checklist asks for.
 import numpy as np
 
 from config import MS_VEX, MS_DRY
-from rpo_config import (RCS_ARM, OMEGA_REQ_DPS, MS_DIMS, TUG_DIMS,
-                        DEBRIS_BUS_DIMS, DEBRIS_PANEL_SPAN, DEBRIS_PANEL_FRAC,
+from rpo_config import (RCS_ARM, F_RCS, N_RCS_PER_EDGE, OMEGA_REQ_DPS, MS_DIMS, TUG_DIMS,
+                        DEBRIS_BUS_DIMS, DEBRIS_PANEL_SPAN_WC, DEBRIS_PANEL_FRAC,
                         M_DEBRIS_WC, M_TUG, ARM_LEN_EXTENDED)
 from rpo_dynamics import box_inertia, debris_inertia, combined_inertia
 from rpo_budget import dv_from_prop, PhaseResult
@@ -66,9 +66,14 @@ def spin_sync_phase(name, omega_dps=OMEGA_REQ_DPS, m0=MS_DRY, arm=RCS_ARM):
                        note="tug stowed, MS inertia near-nominal")
 
 
-def _spin_time(H, arm, force=55.0):
-    """Burn time to build/dump momentum H with an opposed thruster pair."""
-    tau = 2.0 * force * arm
+def _spin_time(H, arm, force_per_edge=None):
+    """
+    Burn time to build/dump angular momentum H using one opposed edge pair.
+    tau = 2 * (N_per_edge * F_single) * arm  = 2 * RCS_THR * arm
+    """
+    if force_per_edge is None:
+        force_per_edge = float(N_RCS_PER_EDGE * F_RCS)  # = 12.0 N
+    tau = 2.0 * force_per_edge * arm
     return float(H / tau)
 
 
@@ -100,7 +105,7 @@ def build_combined_body(arm_len=ARM_LEN_EXTENDED):
     J_ms = box_inertia(MS_DRY, MS_DIMS)
     J_tug = box_inertia(M_TUG, TUG_DIMS)
     J_deb = debris_inertia(M_DEBRIS_WC, DEBRIS_BUS_DIMS,
-                           DEBRIS_PANEL_SPAN, DEBRIS_PANEL_FRAC)
+                           DEBRIS_PANEL_SPAN_WC, DEBRIS_PANEL_FRAC)
 
     half_deb = DEBRIS_BUS_DIMS[2] / 2.0
     bodies = [
@@ -126,12 +131,17 @@ def detumble_phase(name, omega_dps=OMEGA_REQ_DPS, arm=RCS_ARM, arm_len=ARM_LEN_E
 
 
 def arm_extension_phase(name, m0, omega_dps=OMEGA_REQ_DPS, arm=RCS_ARM,
-                        arm_len=ARM_LEN_EXTENDED):
+                        arm_len=ARM_LEN_EXTENDED, duration=None):
     """
     Attitude-hold cost while the arm extends the tug from stowed to ready: the
     growing inertia must be continuously spun up to keep pace with the target
     rate.  Budgeted as the angular-momentum delta between the stowed (near-
     nominal MS) and ready (combined) configurations.
+
+    The phase is mechanically (not momentum) limited: the RCS impulse takes only
+    a few seconds, but the physical boom deploy + grapple-lock onto the tug sets
+    the wall-clock time.  Pass ``duration`` to use that deploy time instead of
+    the (much shorter) momentum-build time.
     """
     omega = np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0) * omega_dps * D2R
     J_stowed = box_inertia(m0, MS_DIMS)
@@ -139,5 +149,6 @@ def arm_extension_phase(name, m0, omega_dps=OMEGA_REQ_DPS, arm=RCS_ARM,
     H_delta = abs(_angular_momentum(J_ready, omega) - _angular_momentum(J_stowed, omega))
     prop = attitude_prop(H_delta, arm)
     dv = dv_from_prop(prop, m0)
-    return PhaseResult(name, dv, prop, duration=_spin_time(H_delta, arm),
+    t = _spin_time(H_delta, arm) if duration is None else float(duration)
+    return PhaseResult(name, dv, prop, duration=t,
                        note="tug-on-arm inertia growth (debris not yet coupled)")

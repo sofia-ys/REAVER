@@ -68,11 +68,14 @@ table = [
         float(row["MASS_KG"]),
         float(row["SEMIMAJOR_AXIS"]),
         float(row["INCLINATION"]),
-        float(row["RA_OF_ASC_NODE"])
+        float(row["RA_OF_ASC_NODE"]),
+        float(row["ECCENTRICITY"]),
+        float(row["ARG_OF_PERICENTER"]),
+        float(row["MEAN_ANOMALY"])
     )
     for idx, row in data.iterrows()
 ]
 
 print(table)
-
+#IDX, name, mass_kg, sma_km, inc_deg, raan_deg, ecc, omega_deg, M_deg
 #epoch, mean motion, eccentricity, arg_of_pericenter, mean_anomaly, REV_AT_EPOCh, Period, APOAPSIS, PERIAPSIS, LAUNCH_DATE
