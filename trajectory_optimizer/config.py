@@ -38,11 +38,11 @@ RH_RAAN = 64.0         # deg  RAAN  (optimal value from rh_raan_sweep.py)
 # ── RPO ΔV constants (close-range proximity ops) ─────────────────────────────
 # Produced by the RPO simulation (run:  python trajectory_optimizer/rpo_run.py).
 # Kept split: each has an independent physical driver and is updated separately.
-DV_RPO_DEBRIS   = 5.1    # m/s  MS alone, tumbling 2700 kg @ 1 rpm (+50% abort)
-DV_RPO_DETUMBLE = 1.6    # m/s  combined body momentum dump (AOCS sizing, REQ-ACS-M4)
-DV_RPO_RH_MEET  = 1.0    # m/s  MS alone meets tug+debris within 500 m of RH
-DV_RPO_RH_DOCK  = 2.1    # m/s  MS+tug+debris to RH port (combined-body CoM offset)
-DV_RPO_RH       = DV_RPO_RH_MEET + DV_RPO_RH_DOCK   # m/s  total per RH cycle
+DV_RPO_DEBRIS   = 0.65   # m/s  MS alone, COMSATBW-1 @ 1 rpm, V-bar inspect + tumble-axis capture (+50% abort)
+DV_RPO_DETUMBLE = 1.33   # m/s  combined body momentum dump (AOCS sizing, REQ-ACS-M4)
+DV_RPO_TUG_MEET = 0.14   # m/s  MS alone, cooperative close approach to tug+debris (30 m -> KOS2 = arm)
+DV_RPO_RH_DOCK  = 0.27   # m/s  MS+tug+debris dock to RH via top port (KOS spheres, CoM offset)
+DV_RPO_RH       = DV_RPO_TUG_MEET + DV_RPO_RH_DOCK   # m/s  total per RH cycle (tug-meet + RH-dock)
 
 # ── Debris catalogue ──────────────────────────────────────────────────────────
 # Columns:
@@ -90,11 +90,17 @@ __all__ = [
     'TUG_DRY', 'TUG_ISP', 'TUG_VEX', 'TUG_THR',
     'N_PHASE_REV', 'T_OPS', 'MAX_DAYS', 'SOFT_MASS',
     'RH_SMA', 'RH_INC', 'RH_RAAN',
-    'DV_RPO_DEBRIS', 'DV_RPO_DETUMBLE', 'DV_RPO_RH_MEET',
+    'DV_RPO_DEBRIS', 'DV_RPO_DETUMBLE', 'DV_RPO_TUG_MEET',
     'DV_RPO_RH_DOCK', 'DV_RPO_RH',
     '_RAW', 'N_DEB', 'IDS', 'NAMES', 'MASS', 'SMA', 'INC', 'RAAN',
     'RH_IDX', 'SMA_ALL', 'INC_ALL', 'RAAN_ALL', 'MASS_ALL',
+    'MS_THR', 'MS_BURN_S', 'MS_WET_ESTIMATE',
 ]
 
 # 'ECC', 'AOP', 'MA', 'PERIOD', 'APOAPSIS', 'PERIAPSIS', 'EPOCH', 'LAUNCH_DATE'
 # 'ECC_ALL', 'AOP_ALL', 'MA_ALL',
+
+# ── Mothership finite-burn model ──────────────────────────────────────────────
+MS_THR   = 64.0        # N, thruster force
+MS_BURN_S = 38 * 60    # s, max single firing duration
+MS_WET_ESTIMATE = 4000.0  # kg, representative mid-mission mass for table pre-computation

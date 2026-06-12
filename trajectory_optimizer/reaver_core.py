@@ -141,6 +141,60 @@ def phasing_hohmann(sma):
     return float(dv), float(t)
 
 
+def finite_burn_time(dv_req, mass_kg, sma_m):
+    """
+    Elapsed wall-clock time [days] to deliver dv_req [m/s] given
+    64 N thrust, 38-min on/off cycling, 2 burns per GEO orbit.
+
+    mass_kg : spacecraft mass at START of this burn sequence [kg]
+    sma_m   : SMA [m] of the orbit where burns occur (sets T_orb)
+    """
+    if dv_req <= 0.0:
+        return 0.0
+    a           = MS_THR / mass_kg
+    dv_per_fire = a * MS_BURN_S
+    n_fires     = int(np.ceil(dv_req / dv_per_fire))
+    n_orbits    = int(np.ceil(n_fires / 2))
+    T_orb       = 2 * np.pi * np.sqrt(sma_m**3 / MU)   # seconds
+    return n_orbits * T_orb / DAY
+
+
+def finite_burn_info(dv_req, mass_kg):
+    """
+    Number of 38-min firings and orbits (2 fires/orbit) needed to deliver
+    dv_req [m/s] at mass_kg [kg], 64 N thrust.
+    """
+    if dv_req <= 0.0:
+        return 0, 0
+    a           = MS_THR / mass_kg
+    dv_per_fire = a * MS_BURN_S
+    n_fires     = int(np.ceil(dv_req / dv_per_fire))
+    n_orbits    = int(np.ceil(n_fires / 2))
+    return n_fires, n_orbits
+
+
+def build_finite_leg_table(mass_kg):
+    """
+    Build (N_DEB+1) × (N_DEB+1) table of corrected leg times
+    using a fixed representative spacecraft mass.
+    Returns T_LEG_FINITE array of same shape as T_LEG.
+    """
+    N = N_DEB + 1
+    t_fin = np.zeros((N, N))
+    for i in range(N):
+        for j in range(N):
+            if i == j:
+                continue
+            m1 = mass_kg
+            m2 = m1 * np.exp(-DV1[i, j] / MS_VEX)
+            m3 = m2 * np.exp(-DV2[i, j] / MS_VEX)
+            t_fin[i, j] = (finite_burn_time(DV1[i,j],  m1, SMA_ALL[i])
+                         + T_TR[i, j]
+                         + finite_burn_time(DV2[i,j],  m2, SMA_ALL[j])
+                         + finite_burn_time(DV_PH[i,j],m3, SMA_ALL[j]))
+    return t_fin
+
+
 # =============================================================================
 # MODULE-LEVEL PRE-COMPUTATION  (default RH RAAN from config)
 # =============================================================================
@@ -150,6 +204,11 @@ t0 = time.time()
 DV1, DV2, DV_PH, T_TR, T_PH = build_transfer_table()
 DV_LEG = DV1 + DV2 + DV_PH
 T_LEG  = T_TR + T_PH
+print(f"done ({time.time()-t0:.2f}s)")
+
+print("  Pre-computing finite-burn leg table...", end=' ', flush=True)
+t0 = time.time()
+T_LEG_FINITE = build_finite_leg_table(MS_WET_ESTIMATE)
 print(f"done ({time.time()-t0:.2f}s)")
 
 print("  Pre-computing tug spirals...", end=' ', flush=True)
