@@ -8,7 +8,7 @@ Izz = 2600;
 
 I = [Ixx, -Ixy, -Ixz;
     -Ixy, Iyy, -Iyz;
-    -Ixz, -Iyz, Izz];
+    -Ixz, -Iyz, Izz]
 
 % defining the state matrices
 A = [0, 0, 0, 1, 0, 0;
@@ -65,3 +65,12 @@ pos = [ r_geo*cos(n*t + phi0), ...
 
 % To use in Simulink: create timeseries
 pos_ts = timeseries(pos, t);
+
+a = [0 1 2;
+    0 2 2;
+    3 1 1];
+
+disp("-----------------")
+for el = 1:length(a)
+    disp(a(el, :))
+end
