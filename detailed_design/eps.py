@@ -30,39 +30,74 @@ class SolarArrayInputs:
     theta_deg: float = 23.5      # Max Sun incidence angle (worst-case, SMAD) [deg]
 
     # --- Cell properties ---
+    mu_cell: float = 0.33       # Cell efficiency (BOL, from datasheet) [-]
+    I_d: float = 0.77            # Inherent degradation factor          [-]
+                                 # (typical 0.77 for triple-junction SMAD)
+
+    # --- Degradation factors ---
+    # f_temp: float = 0.90         # Temperature & radiation loss factor (datasheet) [-]
+    deg_per_year: float = 0.0275 # Annual radiation degradation rate (SMAD)          [-/yr]
+    lifetime_yr: float = 5.0     # Mission lifetime                          [yr]
+
+    # --- Mission power profile ---
+    P_e: float = 150.0            # Power demand during eclipse              [W]
+    P_d: float = 1300.0            # Power demand during daylight             [W]
+    T_e: float = 72.0*60.0       # Eclipse duration (72 min)                [s]
+    T_d: float = 24*60*60 - T_e     # Daylight duration                        [s]
+
+    # --- Power conditioning efficiencies ---
+    mu_har: float  = 0.98        # Harness efficiency         [-]
+    mu_mppt: float = 1        # MPPT efficiency included in PCDU efficiency
+    mu_pcdu: float = 0.95        # PCDU efficiency            [-]
+    mu_bat: float  = 0.90        # Battery (discharge) [-]
+    #TODO: REVISE
+
+    # --- Battery ---
+    DOD: float = 0.80            # Depth of discharge (conservative)    [-]
+
+    # --- Solar array mass model (specific area densities) ---
+    m_density = None # [kg/m&2]
+    m_sp = 180 # [W/kg]
+    #TODO: REVISE
+
+class SolarArrayInputsMS(SolarArrayInputs):
+    """
+    All inputs required for solar array and battery sizing.
+    Units are SI unless otherwise noted.
+    """
+
+    # --- Solar / environment ---
+    S_e: float = 1368.0          # Solar constant at 1 AU            [W/m²]
+    theta_deg: float = 23.5      # Max Sun incidence angle (worst-case, SMAD) [deg]
+
+    # --- Cell properties ---
     mu_cell: float = 0.313       # Cell efficiency (BOL, from datasheet) [-]
     I_d: float = 0.77            # Inherent degradation factor          [-]
                                  # (typical 0.77 for triple-junction) #TODO: REVISE
 
     # --- Degradation factors ---
-    f_temp: float = 0.90         # Temperature & radiation loss factor (datasheet) [-]
     deg_per_year: float = 0.0275 # Annual radiation degradation rate (SMAD)          [-/yr]
     lifetime_yr: float = 5.0     # Mission lifetime                          [yr]
 
     # --- Mission power profile ---
-    P_e: float = 50.0            # Power demand during eclipse              [W]
-    P_d: float = 1500.0            # Power demand during daylight             [W]
-    T_e: float = 72.0*60.0       # Eclipse duration (72 min)                [s]
+    P_e: float = 233            # Power demand during eclipse              [W]
+    P_d: float = 1445.0            # Power demand during daylight             [W]
+    T_e: float = 72*60       # Eclipse duration (72 min)                [s]
     T_d: float = 24*60*60 - T_e     # Daylight duration                        [s]
     #TODO: REVISE
 
     # --- Power conditioning efficiencies ---
-    mu_har: float  = 0.98        # Harness efficiency         [-]
-    mu_mppt: float = 0.97        # MPPT efficiency            [-]
-    mu_pcdu: float = 0.95        # PCDU efficiency            [-]
+    mu_har: float  = 0.98        # Harness efficiency         [-] #TODO REVISE
+    mu_mppt: float = 1        # MPPT efficiency            [-]
+    mu_pcdu: float = 0.97        # PCDU efficiency            [-]
     mu_bat: float  = 0.90        # Battery (charge/discharge) [-]
-    #TODO: REVISE
 
     # --- Battery ---
-    DOD: float = 0.80            # Depth of discharge (conservative LEO)    [-]
+    DOD: float = 0.80            # Depth of discharge    [-]
 
     # --- Solar array mass model (specific area densities) ---
-    m_sp = 172 # [W/kg]
-    # rho_cell: float = 4.3        # Cell assembly areal density   [kg/m²]
-    #                              # (cells + substrate + cover glass)
-    # m_yoke: float = 2            # Yoke mass (per panel)         [kg]
-    # m_deploy: float = 0.5        # Deployment mechanism mass     [kg]
-    #TODO: REVISE
+    m_sp = None # [W/kg]
+    m_density = 7.9 # [kg/m2]
 
 
 # =============================================================================
@@ -91,28 +126,26 @@ def calc_eol_power_density(
     mu_cell: float,
     I_d: float,
     theta_deg: float,
-    f_temp: float,
     L_d: float
 ) -> float:
     """
     End-of-life (EOL) power density of the solar array.
 
     Relation:
-        P_EOL = S_e × mu_cell × I_d × cos(theta) × f_temp × L_d
+        P_EOL = S_e × mu_cell × I_d × cos(theta) × L_d
 
     Args:
         S_e       : Solar constant                  [W/m²]
         mu_cell   : Cell efficiency                 [-]
         I_d       : Inherent degradation            [-]
         theta_deg : Sun incidence angle             [deg]
-        f_temp    : Temperature/radiation factor    [-]
         L_d       : Lifetime degradation factor     [-]
 
     Returns:
         P_EOL : EOL power density  [W/m²]
     """
     cos_theta = math.cos(math.radians(theta_deg))
-    P_EOL = S_e * mu_cell * I_d * cos_theta * f_temp * L_d
+    P_EOL = S_e * mu_cell * I_d * cos_theta * L_d
     return P_EOL
 
 
@@ -201,7 +234,9 @@ def calc_array_mass(
     # rho_cell: float,
     # m_yoke: float,
     # m_deploy: float
+    A_sa: float,
     P_sa: float,
+    m_density: float,
     m_sp: float,
 ) -> dict[str, float]:
     """
@@ -218,7 +253,13 @@ def calc_array_mass(
     Returns:
         dict with keys: m_cells, m_yoke, m_deploy, m_total  [kg]
     """
-    m_total = P_sa / m_sp
+    if m_density:
+        m_total = A_sa * m_density
+    elif m_sp:
+        m_total = P_sa / m_sp
+    else:
+        raise ValueError
+
     return {
         "m_total":  m_total,
     }
@@ -276,7 +317,7 @@ def run_sizing(inp: SolarArrayInputs) -> dict:
 
     # Step 2 – EOL power density
     P_EOL = calc_eol_power_density(
-        inp.S_e, inp.mu_cell, inp.I_d, inp.theta_deg, inp.f_temp, L_d
+        inp.S_e, inp.mu_cell, inp.I_d, inp.theta_deg, L_d
     )
 
     # Step 3 – Load-path efficiencies
@@ -293,7 +334,7 @@ def run_sizing(inp: SolarArrayInputs) -> dict:
     A_sa = calc_array_area(P_sa, P_EOL)
 
     # Step 6 – Array mass
-    mass = calc_array_mass(P_sa, inp.m_sp)
+    mass = calc_array_mass(A_sa, P_sa, inp.m_density, inp.m_sp)
 
     # Step 7 – Battery energy
     E_bat_J  = calc_battery_energy(inp.P_e, inp.T_e, inp.DOD, inp.mu_bat)
@@ -333,7 +374,6 @@ def print_results(inp: SolarArrayInputs, res: dict) -> None:
     print(f"  Cell efficiency            mu_cell   = {inp.mu_cell*100:.1f}  %")
     print(f"  Inherent degradation       I_d       = {inp.I_d:.3f}")
     print(f"  Sun incidence angle        theta     = {inp.theta_deg:.1f}  deg")
-    print(f"  Temp/radiation factor      f_temp    = {inp.f_temp:.3f}")
     print(f"  Annual radiation deg.      deg/yr    = {inp.deg_per_year*100:.2f} %/yr")
     print(f"  Mission lifetime           L         = {inp.lifetime_yr:.1f}  yr")
     print(f"  Eclipse power demand       P_e       = {inp.P_e:.1f}  W")
@@ -366,11 +406,14 @@ def print_results(inp: SolarArrayInputs, res: dict) -> None:
     print(f"\n{sub}")
     print("[PRIMARY OUTPUTS]")
     print()
-    print(f"  Required array power       P_sa  = (P_e·T_e)/(mu_e·T_d) + P_d/mu_d")
+    print(f"  Required EOL array power       P_sa_EOL  = (P_e·T_e)/(mu_e·T_d) + P_d/mu_d")
     print(f"                                   = {res['P_sa']:.2f}  W")
     print()
     print(f"  Solar array area           A_sa  = P_sa / P_EOL")
     print(f"                                   = {res['A_sa']:.4f}  m²")
+    print()
+    print(f"  Required BOL array power       P_sa_BOL  = P_sa_EOL * L_d")
+    print(f"                                   = {res['P_sa']/res['L_d']:.2f}  W")
     print()
     print(f"  Solar array mass breakdown:")
     print(f"    TOTAL                          = {res['mass']['m_total']:.3f}  kg")
@@ -385,6 +428,10 @@ def print_results(inp: SolarArrayInputs, res: dict) -> None:
 # =============================================================================
 
 if __name__ == "__main__":
-    inp = SolarArrayInputs()        # ← Edit inputs here or subclass
-    res = run_sizing(inp)
-    print_results(inp, res)
+    inp_tug = SolarArrayInputs()        # ← Edit inputs here or subclass
+    inp_ms = SolarArrayInputsMS()
+
+    active_inp = inp_ms
+
+    res = run_sizing(active_inp)
+    print_results(active_inp, res)
