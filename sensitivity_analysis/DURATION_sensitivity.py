@@ -30,25 +30,41 @@ tug_m_dry_mission_days = tug_m_dry_table[:, 1]
 parameters["$m_{dry,tug}$"] = tug_m_dry_mission_days
 
 
-'''VARYING ISP'''
-chemical_isp_range = range(243, 256, 1)  
-electric_isp_range = range(1400, 1650, 10)
+'''maybe some margin on tug/ms wet mass'''
 
+'''VARYING ISP'''
+# CHEMICAL PROPELLANT MANUFACTURER RANGE: 243 - 256
+ms_isp_table = pd.read_csv("sensitivity_analysis\\mission_days_for_ms_isp_range.csv")
+ms_isp_table = ms_isp_table.to_numpy()
+ms_isp_mission_days = ms_isp_table[:, 1]
+
+parameters["$I_{sp,ms}$"] = ms_isp_mission_days
+
+# ELECTRIC PROPELLANT MANUFACTURER RANGE: 1400 - 1650
+tug_isp_table = pd.read_csv("sensitivity_analysis\\mission_days_for_tug_isp_range.csv")
+tug_isp_table = tug_isp_table.to_numpy()
+tug_isp_mission_days = tug_isp_table[:, 1]
+
+parameters["$I_{sp,tug}$"] = tug_isp_mission_days
+
+
+'''VARYING DEBRIS MASS'''
+# every combination for debris 1000-2500 kg in increments of 200kg
+m_debris_table = pd.read_csv("sensitivity_analysis\\mission_days_for_debris_mass_range_full.csv")
+m_debris_table = m_debris_table.to_numpy()
+m_debris_mission_days = m_debris_table[:, -1]
+
+parameters["$m_{debris}$"] = m_debris_mission_days
 
 '''VARYING POWER CONSUMPTION'''
 power = 300
 
 
-'''VARYING DEBRIS MASS'''
-m_debris = range(1000, 2001, 100)
-m_debris_range = product(m_debris, repeat=5)
-
-
 '''PLOTTING'''
-plt.axvline(x=297, linestyle="--", label="Design value")
-plt.axvline(x=365, linestyle="--", color="red", label="Constraint value")
+plt.axvline(x=297.3, linestyle="--", label="Design value")
+plt.axvline(x=365.0, linestyle="--", color="red", label="Constraint value")
 plt.boxplot(parameters.values(), tick_labels=parameters.keys(), orientation='horizontal')
 plt.xlabel(f"Mission duration [days]")
 plt.ylabel(f"Technical parameter")
-plt.legend()
+plt.legend(loc='upper right')
 plt.show()
