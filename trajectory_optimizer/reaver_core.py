@@ -191,7 +191,8 @@ def build_finite_leg_table(mass_kg):
             t_fin[i, j] = (finite_burn_time(DV1[i,j],  m1, SMA_ALL[i])
                          + T_TR[i, j]
                          + finite_burn_time(DV2[i,j],  m2, SMA_ALL[j])
-                         + finite_burn_time(DV_PH[i,j],m3, SMA_ALL[j]))
+                         + finite_burn_time(DV_PH[i,j],m3, SMA_ALL[j])
+                         + T_PH[i, j])
     return t_fin
 
 

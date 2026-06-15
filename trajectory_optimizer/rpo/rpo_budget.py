@@ -6,6 +6,8 @@ Tsiolkovsky conversions shared by the guidance and control layers, and a small
 (ΔV, propellant, duration) triple.
 """
 from dataclasses import dataclass
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 
 from config import MS_VEX

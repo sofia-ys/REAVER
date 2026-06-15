@@ -11,6 +11,8 @@ Prints three sections:
     cd c:\\Projects\\DSE\\REAVER
     python trajectory_optimizer/rpo_run.py
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 
 from config import MS_DRY, MS_ISP, MS_VEX, G0

@@ -15,6 +15,8 @@ RH is cooperative (known state, fixed docking axis) so there is no spin-
 synchronisation phase — the cost driver in Phase B is the combined-body inertia
 and the CoM offset from the nominal MS CoM, not tumble matching.
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 
 from config import MS_DRY, TUG_DRY

@@ -11,8 +11,10 @@ import numpy as np
 import pytest
 
 TRAJ_DIR = os.path.dirname(os.path.abspath(__file__))
-if TRAJ_DIR not in sys.path:
-    sys.path.insert(0, TRAJ_DIR)
+RPO_DIR  = os.path.join(TRAJ_DIR, 'rpo')
+for _d in (TRAJ_DIR, RPO_DIR):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 from config import MU, RH_SMA, MS_DRY, MS_VEX
 import rpo_config as rc

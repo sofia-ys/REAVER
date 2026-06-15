@@ -21,8 +21,9 @@ from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
                                 TableStyle, Image, ListFlowable, ListItem)
 from reportlab.lib.utils import ImageReader
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT  = os.path.join(HERE, "RPO_report.pdf")
+HERE     = os.path.dirname(os.path.abspath(__file__))
+FIGS_DIR = os.path.join(os.path.dirname(HERE), 'figures', 'rpo')
+OUT      = os.path.join(HERE, "RPO_report.pdf")
 
 # ── Fonts (DejaVu from matplotlib data dir → full glyph coverage) ────────────
 _ttf = os.path.join(matplotlib.get_data_path(), "fonts", "ttf")
@@ -74,7 +75,7 @@ def bullets(items):
         bulletType="bullet", start="•", leftIndent=10, spaceAfter=6))
 
 def figure(fname, caption, width=120 * mm):
-    path = os.path.join(HERE, fname)
+    path = os.path.join(FIGS_DIR, fname)
     iw, ih = ImageReader(path).getSize()
     h = width * ih / iw
     img = Image(path, width=width, height=h)

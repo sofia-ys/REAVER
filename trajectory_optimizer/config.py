@@ -14,19 +14,20 @@ DAY = 86400.0          # s      seconds per day
 D2R = np.pi / 180.0   # rad/°  degrees to radians
 
 # ── Mothership ────────────────────────────────────────────────────────────────
-MS_DRY = 1120      # kg   dry mass
-MS_ISP = 253.0         # s    specific impulse (monoprop chemical)
-MS_VEX = MS_ISP * G0  # m/s  effective exhaust velocity
+MS_DRY        = 956      # kg   dry mass
+MS_ISP        = 253.0    # s    specific impulse (monoprop chemical)
+MS_VEX        = MS_ISP * G0   # m/s  effective exhaust velocity
+MS_RCS_MARGIN = 0.10     # -    10 % of orbital prop reserved for RCS / proximity ops
 
 # ── Tug ───────────────────────────────────────────────────────────────────────
-TUG_DRY = 191   # kg   dry mass per tug
+TUG_DRY = 221.4   # kg   dry mass per tug
 TUG_ISP = 1600.0       # s    specific impulse (electric propulsion)
 TUG_VEX = TUG_ISP * G0
-TUG_THR = 0.058        # N    thrust per tug
+TUG_THR = 0.07        # N    thrust per tug
 
 # ── Mission ───────────────────────────────────────────────────────────────────
 N_PHASE_REV = 18       # revolutions on phasing orbit to close 90° phase gap
-T_OPS       = 10.0     # days  proximity operations time per debris capture
+T_OPS       = 5.0      # days  proximity operations time per debris capture
 MAX_DAYS    = 365.0    # days  mission completion constraint
 SOFT_MASS   = 2000.0   # kg   debris mass flag threshold for reporting
 
@@ -86,7 +87,7 @@ MASS_ALL = np.append(MASS, 0.0)
 # Explicit export list so that  `from config import *`  includes _RAW
 __all__ = [
     'MU', 'G0', 'DAY', 'D2R',
-    'MS_DRY', 'MS_ISP', 'MS_VEX',
+    'MS_DRY', 'MS_ISP', 'MS_VEX', 'MS_RCS_MARGIN',
     'TUG_DRY', 'TUG_ISP', 'TUG_VEX', 'TUG_THR',
     'N_PHASE_REV', 'T_OPS', 'MAX_DAYS', 'SOFT_MASS',
     'RH_SMA', 'RH_INC', 'RH_RAAN',

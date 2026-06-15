@@ -20,6 +20,8 @@ using standard matplotlib style (no custom colours).
     cd c:\\Projects\\DSE\\REAVER
     python trajectory_optimizer/rpo_plots.py
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -38,7 +40,9 @@ from rpo_debris_sim import simulate_debris_rpo
 from rpo_rh_sim import (simulate_rh_cycle, R_MEET_START,
                         R_CAPTURE, R_DOCK_CLOSE, R_PORT)
 
-SAVE_DIR = r'C:\Projects\DSE\REAVER\trajectory_optimizer'
+SAVE_DIR = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                         'figures', 'rpo')
+_os.makedirs(SAVE_DIR, exist_ok=True)
 
 
 # =============================================================================

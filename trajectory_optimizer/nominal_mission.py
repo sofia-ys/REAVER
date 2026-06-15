@@ -2,15 +2,14 @@
 REAVER — Nominal Mission Evaluator
 ====================================
 Interactive: enter 5 spacecraft IDs in visit order.
-Produces the full mission profile (ΔV breakdown, mass timeline, dashboard plot).
+Produces the full mission profile (ΔV breakdown, mass timeline, standalone figures).
 """
 
+import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.gridspec import GridSpec
 from itertools import permutations
 import time, warnings
 warnings.filterwarnings('ignore')
@@ -135,7 +134,7 @@ def evaluate_sequence(seq):
     tug_prop_uniform = float(TUG_MPROP[list(seq)].max())   # worst-case tug sets the standard
     tug_mwets = np.full(5, TUG_DRY + tug_prop_uniform)
 
-    # Backward pass: propellant sized to end at MS_DRY exactly
+    # Backward pass: orbital prop sized so final mass = MS_DRY (transfers only)
     m = MS_DRY
     m = m * np.exp(DV_LEG[seq[-1], RH_IDX] / MS_VEX)
     for i in range(3, -1, -1):
@@ -143,10 +142,14 @@ def evaluate_sequence(seq):
         m  = m * np.exp(DV_LEG[seq[i], seq[i+1]] / MS_VEX)
     m += tug_mwets[0]
     m  = m * np.exp(DV_LEG[RH_IDX, seq[0]] / MS_VEX)
-    ms_prop = m - MS_DRY - tug_mwets.sum()
-    ms_wet0 = m
+    ms_prop_orbital = m - MS_DRY - tug_mwets.sum()
 
-    # Forward pass: mass + timing
+    # 10 % RCS margin added at launch — covers all proximity operations (RPO)
+    rcs_allocation = MS_RCS_MARGIN * ms_prop_orbital
+    ms_prop        = ms_prop_orbital + rcs_allocation   # total initial propellant
+    ms_wet0        = MS_DRY + tug_mwets.sum() + ms_prop
+
+    # Forward pass: mass + timing (orbital burns + RPO burns interleaved)
     dv_legs = np.array([DV_LEG[nf[i], nt[i]] for i in range(6)])
     t_legs  = np.array([T_LEG_FINITE[nf[i], nt[i]] for i in range(6)])
 
@@ -159,31 +162,50 @@ def evaluate_sequence(seq):
         mass_vec.append(mass)
         t += t_legs[i]
         if i < 5:
+            # RPO at debris: V-bar inspect + tumble-axis capture + detumble
+            mass = mass * np.exp(-(DV_RPO_DEBRIS + DV_RPO_DETUMBLE) / MS_VEX)
             t += T_OPS
             tug_starts.append(t)
             mass -= tug_mwets[i]
+    # 5 × RH proximity docking (tug-meet + dock) as each tug+debris arrives
+    for _ in range(5):
+        mass = mass * np.exp(-DV_RPO_RH / MS_VEX)
     ms_return = t
 
+    rcs_margin  = mass - MS_DRY   # remaining RCS propellant at end of mission
     tug_arrive  = np.array([tug_starts[i] + TUG_TIME[seq[i]] for i in range(5)])
-    handover    = np.array([max(ms_return, tug_arrive[i]) + T_OPS  for i in range(5)])
+
+    # Sequential RH handovers: each must wait for (a) the previous handover to finish
+    # and (b) the tug to arrive — no two handovers overlap.
+    arrive_order = np.argsort(tug_arrive)
+    handover = np.zeros(5)
+    t_rh = ms_return
+    for rank in range(5):
+        i = int(arrive_order[rank])
+        t_start = max(t_rh, float(tug_arrive[i]))
+        handover[i] = t_start + T_OPS
+        t_rh = handover[i]
     mission_day = handover.max()
     tot_dv      = dv_legs.sum()
 
     return dict(
-        seq         = seq,
-        ms_prop     = ms_prop,
-        ms_wet0     = ms_wet0,
-        tug_mwets   = tug_mwets,
-        dv_legs     = dv_legs,
-        t_legs      = t_legs,
-        mass_vec    = np.array(mass_vec),
-        tug_starts  = np.array(tug_starts),
-        tug_arrive  = tug_arrive,
-        handover    = handover,
-        ms_return   = ms_return,
-        mission_day = mission_day,
-        tot_dv      = tot_dv,
-        feasible    = mission_day <= MAX_DAYS,
+        seq             = seq,
+        ms_prop_orbital = ms_prop_orbital,
+        rcs_allocation  = rcs_allocation,
+        ms_prop         = ms_prop,         # total initial prop (orbital + RCS)
+        ms_wet0         = ms_wet0,
+        tug_mwets       = tug_mwets,
+        dv_legs         = dv_legs,
+        t_legs          = t_legs,
+        mass_vec        = np.array(mass_vec),
+        tug_starts      = np.array(tug_starts),
+        tug_arrive      = tug_arrive,
+        handover        = handover,
+        ms_return       = ms_return,
+        mission_day     = mission_day,
+        tot_dv          = tot_dv,
+        feasible        = mission_day <= MAX_DAYS,
+        rcs_margin      = rcs_margin,
     )
 
 # =============================================================================
@@ -233,15 +255,19 @@ def print_results(r):
     # Summary box
     feas_str = "✓ FEASIBLE" if r['feasible'] else "✗ EXCEEDS 365 d"
     tug_prop_total = float((r['tug_mwets'] - TUG_DRY).sum())
-    print(f"\n  ┌{'─'*58}┐")
-    print(f"  │  Mothership ΔV total      : {r['tot_dv']:>8.1f} m/s                 │")
-    print(f"  │  MS propellant used       : {r['ms_prop']:>8.1f} kg                  │")
-    print(f"  │  Tug propellant total     : {tug_prop_total:>8.1f} kg                  │")
-    print(f"  │  Combined propellant      : {r['ms_prop']+tug_prop_total:>8.1f} kg                  │")
-    print(f"  │  MS returns to RH day     : {r['ms_return']:>8.1f} d                   │")
-    print(f"  │  Total debris mass removed: {MASS[list(seq)].sum():>8.0f} kg                  │")
-    print(f"  │  Mission completion       : {r['mission_day']:>8.1f} d  {feas_str:<14}   │")
-    print(f"  └{'─'*58}┘")
+    rcs_pct = 100.0 * r['rcs_margin'] / r['rcs_allocation']
+    print(f"\n  ┌{'─'*60}┐")
+    print(f"  │  Mothership ΔV total        : {r['tot_dv']:>8.1f} m/s                   │")
+    print(f"  │  MS orbital propellant      : {r['ms_prop_orbital']:>8.1f} kg                    │")
+    print(f"  │  RCS margin (+10% budget)   : {r['rcs_allocation']:>8.1f} kg                    │")
+    print(f"  │  MS total initial prop      : {r['ms_prop']:>8.1f} kg                    │")
+    print(f"  │  Tug propellant total       : {tug_prop_total:>8.1f} kg                    │")
+    print(f"  │  Combined propellant        : {r['ms_prop']+tug_prop_total:>8.1f} kg                    │")
+    print(f"  │  MS returns to RH day       : {r['ms_return']:>8.1f} d                     │")
+    print(f"  │  Total debris mass removed  : {MASS[list(seq)].sum():>8.0f} kg                    │")
+    print(f"  │  RCS margin remaining       : {r['rcs_margin']:>8.1f} kg  ({rcs_pct:5.1f}% of budget)  │")
+    print(f"  │  Mission completion         : {r['mission_day']:>8.1f} d  {feas_str:<14}     │")
+    print(f"  └{'─'*60}┘")
 
 # =============================================================================
 # MASS TIMELINE PRINT
@@ -252,16 +278,16 @@ def print_mass_timeline(r):
     nf_ = [RH_IDX] + list(seq); nt_ = list(seq) + [RH_IDX]
     m0  = r['ms_wet0']
     tug_mwets = r['tug_mwets']
-    W = 42
+    W = 64
 
-    print("\n" + "="*74)
+    print("\n" + "="*98)
     print("  MOTHERSHIP MASS TIMELINE")
-    print("="*74)
+    print("="*98)
     print("  " + "  ->  ".join(NAMES[k].split('(')[0].strip()[:14] for k in seq))
-    print(f"\n  Initial: {MS_DRY:.0f} kg dry  +  {r['ms_prop']:.1f} kg prop"
-          f"  +  {tug_mwets.sum():.1f} kg tugs  =  {m0:.1f} kg")
+    print(f"\n  Initial: {MS_DRY:.0f} kg dry  +  {r['ms_prop_orbital']:.1f} kg orbital prop"
+          f"  +  {r['rcs_allocation']:.1f} kg RCS (+10%)  +  {tug_mwets.sum():.1f} kg tugs  =  {m0:.1f} kg")
     print(f"\n  {'Day':>7}  {'Event':<{W}}  {'D Mass kg':>10}  {'Mass kg':>9}")
-    print(f"  {'':->7}  {'':−<{W}}  {'':->10}  {'':->9}")
+    print(f"  {'':->7}  {'':─<{W}}  {'':->10}  {'':->9}")
 
     m = m0; t = 0.0
 
@@ -275,15 +301,15 @@ def print_mass_timeline(r):
     prow(t, "Depart Recycling Hub")
     for i in range(6):
         fi=nf_[i]; ti=nt_[i]
-        dest = NAMES[ti].split('(')[0].strip()[:26] if ti < N_DEB else 'Recycling Hub'
+        dest = NAMES[ti].split('(')[0].strip()[:28] if ti < N_DEB else 'Recycling Hub'
         asc  = SMA_ALL[ti] >= SMA_ALL[fi]
         d1,d2,dph = DV1[fi,ti], DV2[fi,ti], DV_PH[fi,ti]
 
         m_b1 = m
         dm = -m*(1 - np.exp(-d1/MS_VEX))
         nf1, no1 = finite_burn_info(d1, m_b1)
-        b1 = (f"  Burn 1  Hohmann dep      ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)" if asc else
-              f"  Burn 1  dep + plane chg  ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)")
+        b1 = (f"  Burn 1  Hohmann dep       ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)" if asc else
+              f"  Burn 1  dep + plane chg   ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)")
         prow(t, b1, dm)
         t += finite_burn_time(d1, m_b1, SMA_ALL[fi])
 
@@ -292,27 +318,55 @@ def print_mass_timeline(r):
         m_b2 = m
         dm = -m*(1 - np.exp(-d2/MS_VEX))
         nf2, no2 = finite_burn_info(d2, m_b2)
-        b2 = (f"  Burn 2  circ + plane chg ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)" if asc else
-              f"  Burn 2  circularise      ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)")
+        b2 = (f"  Burn 2  circ + plane chg  ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)" if asc else
+              f"  Burn 2  circularise        ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)")
         prow(t, b2, dm)
         t += finite_burn_time(d2, m_b2, SMA_ALL[ti])
 
         m_b3 = m
         dm_ph = -m*(1 - np.exp(-dph/MS_VEX))
         nf3, no3 = finite_burn_info(dph, m_b3)
-        prow(t, f"  Burn 3  phasing          ({dph:6.1f} m/s | {nf3} fires, {no3} orbits)", dm_ph)
+        prow(t, f"  Burn 3  phasing           ({dph:6.1f} m/s | {nf3} fires, {no3} orbits)", dm_ph)
         t += finite_burn_time(dph, m_b3, SMA_ALL[ti])
+        t += T_PH[fi, ti]
+        prow(t, f"  Phase coast               ({N_PHASE_REV} rev × {T_PH[fi,ti]/N_PHASE_REV:.2f} d = {T_PH[fi,ti]:.1f} d)", None)
 
         if i < 5:
             prow(t, f"  Rendezvous: {dest}", None)
+            # Inspect + capture on arrival day; detumble ~1 day later after ground relay
+            dm_rpo1 = -m * (1 - np.exp(-DV_RPO_DEBRIS   / MS_VEX))
+            prow(t,       f"  RPO inspect + capture     ({DV_RPO_DEBRIS:.2f} m/s, +50% abort)", dm_rpo1)
+            dm_rpo2 = -m * (1 - np.exp(-DV_RPO_DETUMBLE / MS_VEX))
+            prow(t + 1.0, f"  RPO detumble              ({DV_RPO_DETUMBLE:.2f} m/s, ACS body dump)", dm_rpo2)
             t += T_OPS
             prow(t, f"  Tug {i+1} released ({tug_mwets[i]:.1f} kg)", -tug_mwets[i])
         else:
             prow(t, "  Arrive Recycling Hub", None)
+            # Sequential handovers: process tugs in arrival order; each waits for
+            # the previous handover to complete AND for the tug to arrive at RH.
+            arrive_order_rh = np.argsort(r['tug_arrive'])
+            t_rh = t
+            for j_rank in range(5):
+                j = int(arrive_order_rh[j_rank])
+                ta = float(r['tug_arrive'][j])
+                t_next = max(t_rh, ta)
+                if t_next > t_rh + 0.1:
+                    prow(t_next, f"  Wait: tug {j+1} arriving at RH (d {ta:.1f})", None)
+                t_rh = t_next
+                dm_meet = -m * (1 - np.exp(-DV_RPO_TUG_MEET / MS_VEX))
+                prow(t_rh,       f"  RPO tug-meet tug {j+1}        ({DV_RPO_TUG_MEET:.2f} m/s)", dm_meet)
+                dm_dock = -m * (1 - np.exp(-DV_RPO_RH_DOCK  / MS_VEX))
+                prow(t_rh + 0.5, f"  RPO dock to RH tug {j+1}      ({DV_RPO_RH_DOCK:.2f} m/s)", dm_dock)
+                t_rh += T_OPS
+                prow(t_rh, f"  Handover {j+1} complete", None)
 
-    print(f"  {'':->7}  {'':−<{W}}  {'':->10}  {'':->9}")
-    print(f"\n  Prop required : {r['ms_prop']:.1f} kg"
-          f"  |  Final margin : {m - MS_DRY:.1f} kg"
+    print(f"  {'':->7}  {'':─<{W}}  {'':->10}  {'':->9}")
+    rcs_remaining = m - MS_DRY
+    rcs_pct = 100.0 * rcs_remaining / r['rcs_allocation']
+    print(f"\n  Orbital prop    : {r['ms_prop_orbital']:.1f} kg"
+          f"  |  RCS budget (+10%) : {r['rcs_allocation']:.1f} kg"
+          f"  |  Total init prop : {r['ms_prop']:.1f} kg")
+    print(f"  RCS remaining   : {rcs_remaining:.1f} kg  ({rcs_pct:.1f}% of budget)"
           f"  |  Mission day : {r['mission_day']:.1f} d")
 
 # =============================================================================
@@ -347,137 +401,158 @@ def print_tug_margins(r):
 
 
 # =============================================================================
-# DASHBOARD PLOT
+# STANDALONE FIGURES
 # =============================================================================
 
-def make_plot(r, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\nominal_mission.png'):
-    BG='#0d1117'; CB='#161b22'; TC='#c9d1d9'; MU_='#8b949e'; GR='#21262d'
-    A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'; A5='#ffa657'
-    LC=[A1,A2,A4,A3,A5,'#79c0ff']; TC_=[A1,A2,A4,A3,A5]
+def make_plot(r, save_dir=None):
+    if save_dir is None:
+        save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                'figures', 'nominal_mission')
+    os.makedirs(save_dir, exist_ok=True)
 
-    seq = r['seq']
-    fig = plt.figure(figsize=(20,11)); fig.patch.set_facecolor(BG)
-    gs  = GridSpec(2,3,figure=fig,hspace=0.52,wspace=0.36,height_ratios=[1,1.3])
-
-    def sax(ax, title=''):
-        ax.set_facecolor(CB)
-        [s.set_edgecolor(GR) for s in ax.spines.values()]
-        ax.tick_params(colors=MU_,labelsize=8)
-        ax.xaxis.label.set_color(MU_); ax.yaxis.label.set_color(MU_)
-        ax.grid(True,color=GR,lw=0.5,alpha=0.7)
-        if title: ax.set_title(title,color=TC,fontsize=9,fontweight='bold',pad=8)
-
-    seq_str = "  →  ".join(f"[{IDS[k]}] {NAMES[k].split('(')[0].strip()[:12]}" for k in seq)
-    feas = "✓ FEASIBLE" if r['feasible'] else "✗ INFEASIBLE"
-    fig.text(0.5,0.980,'REAVER — Nominal Mission Dashboard',
-             ha='center',color=TC,fontsize=15,fontweight='bold')
-    fig.text(0.5,0.958, seq_str, ha='center',color=MU_,fontsize=8)
-    fig.text(0.5,0.940,
-             f"MS prop {r['ms_prop']:.0f} kg  |  Total ΔV {r['tot_dv']:.0f} m/s  |  "
-             f"Mission day {r['mission_day']:.1f}  |  {feas}",
-             ha='center',color=A2 if r['feasible'] else A3,fontsize=8)
+    seq  = r['seq']
+    nf_  = [RH_IDX] + list(seq)
+    nt_  = list(seq) + [RH_IDX]
+    cyc  = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    saved = []
 
     # ── 1. Full mission timeline ──────────────────────────────────────────────
-    ax5 = fig.add_subplot(gs[0,:])
-    sax(ax5,'Full mission timeline')
-    events = [(0,'Depart RH',MU_)]
+    fig1, ax1 = plt.subplots(figsize=(14, 4))
+    events = [(0, 'Depart RH', 'gray')]
     cum = 0.0
-    nf_ = [RH_IDX]+list(seq); nt_ = list(seq)+[RH_IDX]
-    for i,idx in enumerate(seq):
-        cum += T_TR[nf_[i],nt_[i]] + T_PH[nf_[i],nt_[i]]
-        events.append((cum,f'Arr.{i+1}:{NAMES[idx].split("(")[0][:9]}',LC[i]))
+    for i, idx in enumerate(seq):
+        cum += T_TR[nf_[i], nt_[i]] + T_PH[nf_[i], nt_[i]]
+        events.append((cum, f'Arr.{i+1}:{NAMES[idx].split("(")[0][:9]}', cyc[i % len(cyc)]))
         cum += T_OPS
-        events.append((cum,f'Handoff Tug{i+1}',TC_[i]))
-    cum += T_TR[seq[-1],RH_IDX] + T_PH[seq[-1],RH_IDX]
-    events.append((cum,'MS@RH',A2))
+        events.append((cum, f'Handoff Tug{i+1}', cyc[i % len(cyc)]))
+    cum += T_TR[seq[-1], RH_IDX] + T_PH[seq[-1], RH_IDX]
+    events.append((cum, 'MS@RH', 'green'))
     for i in range(5):
-        events.append((r['handover'][i],f'HO:{NAMES[seq[i]].split("(")[0][:9]}',A4))
-    events.append((r['mission_day'],'✓ DONE',A3))
-    events.sort(key=lambda x:x[0])
-    for j,(day,label,col) in enumerate(events):
-        ax5.axvline(day,color=col,alpha=0.5,lw=0.9)
-        yo = 0.65 if j%2==0 else 0.22
-        ax5.text(day,yo,f'{label}\nd{day:.0f}',ha='center',va='center',
-                 fontsize=6.5,color=col,
-                 bbox=dict(fc=CB,ec=col,boxstyle='round,pad=0.25',alpha=0.92))
-    ax5.axvline(MAX_DAYS,color=A3,lw=1.5,ls='--',alpha=0.85)
-    ax5.text(MAX_DAYS+1.5,0.42,'365d',color=A3,fontsize=7.5,va='center')
-    ax5.set_xlim(-8,max(MAX_DAYS+28, r['mission_day']+20))
-    ax5.set_ylim(0,1); ax5.set_yticks([]); ax5.set_xlabel('Mission day')
+        events.append((r['handover'][i], f'HO:{NAMES[seq[i]].split("(")[0][:9]}', 'purple'))
+    events.append((r['mission_day'], 'Mission Complete', 'red'))
+    events.sort(key=lambda x: x[0])
+    for j, (day, label, col) in enumerate(events):
+        ax1.axvline(day, color=col, alpha=0.5, lw=0.9)
+        yo = 0.65 if j % 2 == 0 else 0.22
+        ax1.text(day, yo, f'{label}\nd{day:.0f}', ha='center', va='center',
+                 fontsize=7, color=col,
+                 bbox=dict(fc='white', ec=col, boxstyle='round,pad=0.25', alpha=0.9))
+    ax1.axvline(MAX_DAYS, color='red', lw=1.5, ls='--', alpha=0.85)
+    ax1.text(MAX_DAYS + 1.5, 0.42, '365d', color='red', fontsize=8, va='center')
+    ax1.set_xlim(-8, max(MAX_DAYS + 28, r['mission_day'] + 20))
+    ax1.set_ylim(0, 1)
+    ax1.set_yticks([])
+    ax1.set_xlabel('Mission day')
+    ax1.set_title('Full Mission Timeline')
+    ax1.grid(True, alpha=0.4)
+    fig1.tight_layout()
+    p1 = os.path.join(save_dir, '01_mission_timeline.png')
+    fig1.savefig(p1, dpi=150, bbox_inches='tight')
+    plt.close(fig1)
+    saved.append(p1)
 
-    # ── 2. Tug Gantt ─────────────────────────────────────────────────────────
-    ax4 = fig.add_subplot(gs[1,0])
-    sax(ax4,'Tug spiral Gantt')
-    for i,idx in enumerate(seq):
-        s=r['tug_starts'][i]; e=r['tug_arrive'][i]
-        ax4.barh(i,e-s,left=s,color=TC_[i],alpha=0.8,ec='none',height=0.55)
-        ax4.text(e+1.5,i,f'd{e:.0f}',va='center',fontsize=7,color=TC_[i])
-    ax4.axvline(r['ms_return'],color='white',lw=1.2,ls=':',alpha=0.7,
+    # ── 2. Tug spiral Gantt ───────────────────────────────────────────────────
+    fig2, ax2 = plt.subplots(figsize=(10, 5))
+    for i, idx in enumerate(seq):
+        s = r['tug_starts'][i]; e = r['tug_arrive'][i]
+        ax2.barh(i, e - s, left=s, alpha=0.85, height=0.55, color=cyc[i % len(cyc)])
+        ax2.text(e + 1.5, i, f'd{e:.0f}', va='center', fontsize=8)
+    ax2.axvline(r['ms_return'], color='gray', lw=1.2, ls=':', alpha=0.8,
                 label=f"MS@RH d{r['ms_return']:.0f}")
-    ax4.axvline(MAX_DAYS,color=A3,lw=1.3,ls='--',alpha=0.85,label='365d')
-    ax4.set_yticks(range(5))
-    ax4.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seq],fontsize=7)
-    ax4.set_xlabel('Mission day')
-    ax4.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
+    ax2.axvline(MAX_DAYS, color='red', lw=1.3, ls='--', alpha=0.85, label='365d limit')
+    ax2.set_yticks(range(5))
+    ax2.set_yticklabels([NAMES[i].split('(')[0].strip()[:18] for i in seq], fontsize=9)
+    ax2.set_xlabel('Mission day')
+    ax2.set_title('Tug Spiral Gantt')
+    ax2.legend()
+    ax2.grid(True, alpha=0.4, axis='x')
+    fig2.tight_layout()
+    p2 = os.path.join(save_dir, '02_tug_spiral_gantt.png')
+    fig2.savefig(p2, dpi=150, bbox_inches='tight')
+    plt.close(fig2)
+    saved.append(p2)
 
     # ── 3. Mothership mass vs time ────────────────────────────────────────────
-    ax_m = fig.add_subplot(gs[1,1])
-    sax(ax_m,'Mothership mass vs time')
+    fig3, ax3 = plt.subplots(figsize=(10, 5))
     tug_mwets = r['tug_mwets']
     m = r['ms_wet0']; t = 0.0
-    t_pts=[t]; m_pts=[m]; ms_t=[t]; ms_m=[m]; ms_lbl=['RH']
+    t_pts = [t]; m_pts = [m]; ms_t = [t]; ms_m = [m]; ms_lbl = ['RH']
     for i in range(6):
-        fi=nf_[i]; tj=nt_[i]
-        for dv_b in [DV1[fi,tj],DV2[fi,tj],DV_PH[fi,tj]]:
-            m_pre=m; m*=np.exp(-dv_b/MS_VEX)
-            t_pts+=[t,t]; m_pts+=[m_pre,m]
-        t += T_TR[fi,tj]+T_PH[fi,tj]
+        fi = nf_[i]; tj = nt_[i]
+        for dv_b in [DV1[fi, tj], DV2[fi, tj], DV_PH[fi, tj]]:
+            m_pre = m; m *= np.exp(-dv_b / MS_VEX)
+            t_pts += [t, t]; m_pts += [m_pre, m]
+        t += T_TR[fi, tj] + T_PH[fi, tj]
         t_pts.append(t); m_pts.append(m)
-        lbl = NAMES[tj].split('(')[0][:12] if tj<N_DEB else 'RH'
+        lbl = NAMES[tj].split('(')[0][:12] if tj < N_DEB else 'RH'
         ms_t.append(t); ms_m.append(m); ms_lbl.append(lbl)
         if i < 5:
+            for dv_rpo in [DV_RPO_DEBRIS, DV_RPO_DETUMBLE]:
+                m_pre = m; m *= np.exp(-dv_rpo / MS_VEX)
+                t_pts += [t, t]; m_pts += [m_pre, m]
             t += T_OPS; t_pts.append(t); m_pts.append(m)
-            m_pre=m; m -= tug_mwets[i]
-            t_pts+=[t,t]; m_pts+=[m_pre,m]
-    ax_m.plot(t_pts,m_pts,color=A1,lw=1.5,zorder=3)
-    ax_m.scatter(ms_t,ms_m,color=A2,s=40,zorder=5,lw=0)
-    for k,(tt,mm,lb) in enumerate(zip(ms_t,ms_m,ms_lbl)):
-        yo = 8 if k%2==0 else -12
-        ax_m.annotate(lb,(tt,mm),xytext=(0,yo),textcoords='offset points',
-                      fontsize=6.5,color=A2,ha='center')
-    ax_m.axhline(MS_DRY,color=A3,lw=1.2,ls='--',alpha=0.85,
-                 label=f'Dry mass {MS_DRY:.0f} kg')
-    ax_m.set_xlabel('Mission day'); ax_m.set_ylabel('Mothership mass [kg]')
-    ax_m.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
+            m_pre = m; m -= tug_mwets[i]
+            t_pts += [t, t]; m_pts += [m_pre, m]
+        else:
+            for _ in range(5):
+                m_pre = m; m *= np.exp(-DV_RPO_RH / MS_VEX)
+                t_pts += [t, t]; m_pts += [m_pre, m]
+    ax3.plot(t_pts, m_pts, lw=1.5, zorder=3, label='MS mass')
+    ax3.scatter(ms_t, ms_m, s=50, zorder=5, label='Key event')
+    for k, (tt, mm, lb) in enumerate(zip(ms_t, ms_m, ms_lbl)):
+        yo = 8 if k % 2 == 0 else -12
+        ax3.annotate(lb, (tt, mm), xytext=(0, yo), textcoords='offset points',
+                     fontsize=7, ha='center')
+    ax3.axhline(MS_DRY, color='red', lw=1.2, ls='--', alpha=0.85,
+                label=f'Dry mass {MS_DRY:.0f} kg')
+    ax3.axhline(MS_DRY + r['rcs_allocation'], color='orange', lw=1.0, ls=':',
+                alpha=0.75, label=f'Dry+RCS budget {MS_DRY + r["rcs_allocation"]:.0f} kg')
+    ax3.set_xlabel('Mission day')
+    ax3.set_ylabel('Mothership mass [kg]')
+    ax3.set_title('Mothership Mass vs Time')
+    ax3.legend(fontsize=8)
+    ax3.grid(True, alpha=0.4)
+    fig3.tight_layout()
+    p3 = os.path.join(save_dir, '03_mothership_mass_vs_time.png')
+    fig3.savefig(p3, dpi=150, bbox_inches='tight')
+    plt.close(fig3)
+    saved.append(p3)
 
     # ── 4. Per-leg ΔV stacked bar ─────────────────────────────────────────────
-    ax6 = fig.add_subplot(gs[1,2])
-    sax(ax6,'ΔV breakdown per leg')
+    fig4, ax4 = plt.subplots(figsize=(9, 5))
     components = ['Hohmann dep', 'Circ+plane', 'Phasing']
-    colors_dv  = [A1, A4, A5]
-    bottoms = np.zeros(6)
-    dvs = np.array([[DV1[nf_[li],nt_[li]], DV2[nf_[li],nt_[li]], DV_PH[nf_[li],nt_[li]]]
+    dvs = np.array([[DV1[nf_[li], nt_[li]], DV2[nf_[li], nt_[li]], DV_PH[nf_[li], nt_[li]]]
                     for li in range(6)])
-    for ci, (comp, col) in enumerate(zip(components, colors_dv)):
+    bottoms = np.zeros(6)
+    bar_colors = [cyc[0], cyc[3 % len(cyc)], cyc[4 % len(cyc)]]
+    for ci, (comp, col) in enumerate(zip(components, bar_colors)):
         vals = dvs[:, ci]
-        bars = ax6.bar(range(6), vals, bottom=bottoms, color=col, alpha=0.85,
-                       ec='none', label=comp)
+        ax4.bar(range(6), vals, bottom=bottoms, alpha=0.85, label=comp, color=col)
         for li in range(6):
             if vals[li] > 15:
-                ax6.text(li, bottoms[li]+vals[li]/2, f'{vals[li]:.0f}',
-                         ha='center',va='center',fontsize=6.5,color='white',fontweight='bold')
+                ax4.text(li, bottoms[li] + vals[li] / 2, f'{vals[li]:.0f}',
+                         ha='center', va='center', fontsize=7, color='white', fontweight='bold')
         bottoms += vals
     xlbls = [f'L{i+1}\n{NAMES[seq[i]].split("(")[0][:8]}' for i in range(5)] + ['Ret\nRH']
-    ax6.set_xticks(range(6)); ax6.set_xticklabels(xlbls, fontsize=6.5)
-    ax6.set_ylabel('ΔV [m/s]')
+    ax4.set_xticks(range(6))
+    ax4.set_xticklabels(xlbls, fontsize=8)
+    ax4.set_ylabel('ΔV [m/s]')
+    ax4.set_title('ΔV Breakdown per Leg')
     total_per_leg = dvs.sum(axis=1)
     for li in range(6):
-        ax6.text(li, bottoms[li]+5, f'{total_per_leg[li]:.0f}',
-                 ha='center',va='bottom',fontsize=7,color=TC)
-    ax6.legend(fontsize=7,facecolor=CB,labelcolor=TC,edgecolor=GR)
+        ax4.text(li, bottoms[li] + 5, f'{total_per_leg[li]:.0f}',
+                 ha='center', va='bottom', fontsize=8)
+    ax4.legend()
+    ax4.grid(True, alpha=0.4, axis='y')
+    fig4.tight_layout()
+    p4 = os.path.join(save_dir, '04_dv_breakdown_per_leg.png')
+    fig4.savefig(p4, dpi=150, bbox_inches='tight')
+    plt.close(fig4)
+    saved.append(p4)
 
-    plt.savefig(save_path,dpi=150,bbox_inches='tight',facecolor=BG,edgecolor='none')
-    print(f"\n  Plot saved → {save_path}")
+    for p in saved:
+        print(f"  Plot saved → {p}")
+    return saved
 
 # =============================================================================
 # MAIN

@@ -24,6 +24,8 @@ Outputs the two debris-RPO constants:
                       + arm-ext + final-app + retreat (+ abort margin)
     DV_RPO_DETUMBLE = momentum dumping of the combined body (extracted separately)
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 
 from config import MS_DRY

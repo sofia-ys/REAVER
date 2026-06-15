@@ -15,6 +15,8 @@ References:
   Conings & Mooij, "Integrated GNC System Design for Active Debris Removal",
   AIAA-2025-0085.  Table 1 (guidance), Table 2 (control), Table 4 (VBN).
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 from config import MU, RH_SMA, MS_DRY, TUG_DRY, MS_VEX, DAY
 

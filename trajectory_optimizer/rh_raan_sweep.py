@@ -7,6 +7,7 @@ and mean mothership propellant for each position.
 Key output: the RAAN that minimises the worst-case required propellant.
 """
 
+import os
 import numpy as np
 from itertools import combinations, permutations
 import matplotlib
@@ -334,7 +335,9 @@ ax2.set_title('Feasible combinations vs RH RAAN', color=TC, fontsize=9,
 ax2.legend(fontsize=7.5, facecolor=CB, labelcolor=TC, edgecolor=GR)
 ax2.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
 
-SAVE = r'C:\Projects\DSE\REAVER\trajectory_optimizer\rh_raan_sweep.png'
+SAVE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                    'figures', 'rh_raan_sweep', 'rh_raan_sweep.png')
+os.makedirs(os.path.dirname(SAVE), exist_ok=True)
 plt.tight_layout(rect=[0, 0, 1, 0.97])
 plt.savefig(SAVE, dpi=150, bbox_inches='tight', facecolor=BG)
 print(f"\n  Plot saved → {SAVE}")

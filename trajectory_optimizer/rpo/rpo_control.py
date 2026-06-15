@@ -27,6 +27,8 @@ arm, not on the thrust level.  The equivalent ΔV follows from Tsiolkovsky.
 This is intentionally conservative (no reaction-wheel storage credit), which is
 the correct posture for the worst-case AOCS sizing the checklist asks for.
 """
+import sys as _sys, os as _os
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..'))
 import numpy as np
 
 from config import MS_VEX, MS_DRY
