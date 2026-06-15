@@ -124,6 +124,40 @@ def compute_tug_spirals(rh_raan_deg=RH_RAAN):
     return tug_dv, tug_time, tug_mprop, tug_mwet
 
 
+def tug_loads(tug_props):
+    """
+    REAVER tug propellant loading rule.
+
+    Given the per-debris tug propellant *requirements* (TUG_MPROP) for the 5
+    debris in a sequence, return the propellant actually *loaded* into each of
+    the 5 tugs, in the same position order as the input.
+
+    Loading rule (avoids under-using propellant capacity while guaranteeing a
+    redundant tug for the hardest spiral):
+      - the two debris with the highest requirement each get a tug loaded to
+        (max requirement)        × (1 + TUG_PROP_MARGIN)
+      - the remaining three get a tug loaded to
+        (2nd-highest requirement) × (1 + TUG_PROP_MARGIN)
+
+    Example: if the max requirement is 100 kg and the 2nd-highest is 30 kg,
+    two tugs are loaded to 110 kg and three tugs to 33 kg.
+
+    Accepts a (5,) vector or an (n, 5) array; returns an array of the same shape.
+    """
+    p = np.asarray(tug_props, dtype=np.float64)
+    single = (p.ndim == 1)
+    p = np.atleast_2d(p)                               # (n, 5)
+    order = np.argsort(-p, axis=1)                     # descending: rank -> position
+    desc  = np.take_along_axis(p, order, axis=1)       # (n, 5) requirements, descending
+    factor = 1.0 + TUG_PROP_MARGIN
+    load_by_rank = np.empty_like(p)
+    load_by_rank[:, :2] = desc[:, 0:1] * factor        # 2 hardest -> max  × margin
+    load_by_rank[:, 2:] = desc[:, 1:2] * factor        # other 3   -> 2nd  × margin
+    loads = np.empty_like(p)
+    np.put_along_axis(loads, order, load_by_rank, axis=1)   # scatter back to position order
+    return loads[0] if single else loads
+
+
 def phasing_hohmann(sma):
     """
     Double-Hohmann phasing burn and duration at a given orbit.
@@ -214,7 +248,7 @@ print(f"done ({time.time()-t0:.2f}s)")
 
 print("  Pre-computing tug spirals...", end=' ', flush=True)
 TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET = compute_tug_spirals()
-TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max()
+TUG_WET_LOADED = TUG_DRY + TUG_MPROP.max() * (1.0 + TUG_PROP_MARGIN)
 print(f"done ({time.time()-t0:.2f}s)")
-print(f"  Tug loaded wet mass (worst-case sizing): {TUG_WET_LOADED:.1f} kg")
+print(f"  Tug loaded wet mass (max requirement +{TUG_PROP_MARGIN*100:.0f}%): {TUG_WET_LOADED:.1f} kg")
 

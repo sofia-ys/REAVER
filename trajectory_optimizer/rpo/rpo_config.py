@@ -39,7 +39,7 @@ R_CUTOFF = 150.0        # m   RF/UKF -> LiDAR/VBN handover (100-200 m band).
 # after the V-bar inspection has measured the spin rate + tumble axis.
 INSPECT_STANDOFF = 20.0     # m   V-bar inspection hold standoff (KOS1-clear, fixed hold)
 H_BAR_STANDOFF   = 20.0     # m   tumble-axis (H-bar) capture standoff
-ARM_LEN_EXTENDED = 5.0      # m   robotic-arm length when extended            # TBD MIRON
+ARM_LEN_EXTENDED = 4.627      # m   robotic-arm length when extended
 
 # ── KOS1: operational definition (NOT a mission constant) ────────────────────
 # KOS1 is set PER TARGET at the cut-off distance (150-200 m) based on the

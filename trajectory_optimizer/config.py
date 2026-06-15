@@ -24,6 +24,7 @@ TUG_DRY = 221.4   # kg   dry mass per tug
 TUG_ISP = 1600.0       # s    specific impulse (electric propulsion)
 TUG_VEX = TUG_ISP * G0
 TUG_THR = 0.07        # N    thrust per tug
+TUG_PROP_MARGIN = 0.10   # -    +10 % loading margin applied to every tug's propellant
 
 # ── Mission ───────────────────────────────────────────────────────────────────
 N_PHASE_REV = 18       # revolutions on phasing orbit to close 90° phase gap
@@ -88,7 +89,7 @@ MASS_ALL = np.append(MASS, 0.0)
 __all__ = [
     'MU', 'G0', 'DAY', 'D2R',
     'MS_DRY', 'MS_ISP', 'MS_VEX', 'MS_RCS_MARGIN',
-    'TUG_DRY', 'TUG_ISP', 'TUG_VEX', 'TUG_THR',
+    'TUG_DRY', 'TUG_ISP', 'TUG_VEX', 'TUG_THR', 'TUG_PROP_MARGIN',
     'N_PHASE_REV', 'T_OPS', 'MAX_DAYS', 'SOFT_MASS',
     'RH_SMA', 'RH_INC', 'RH_RAAN',
     'DV_RPO_DEBRIS', 'DV_RPO_DETUMBLE', 'DV_RPO_TUG_MEET',
@@ -104,4 +105,4 @@ __all__ = [
 # ── Mothership finite-burn model ──────────────────────────────────────────────
 MS_THR   = 64.0        # N, thruster force
 MS_BURN_S = 38 * 60    # s, max single firing duration
-MS_WET_ESTIMATE = 4000.0  # kg, representative mid-mission mass for table pre-computation
+MS_WET_ESTIMATE = 2250.0  # kg, representative mid-mission mass for table pre-computation

@@ -16,7 +16,7 @@ warnings.filterwarnings('ignore')
 
 from config import *
 from reaver_core import (DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG, T_LEG_FINITE,
-                         finite_burn_time, finite_burn_info,
+                         finite_burn_time, finite_burn_info, tug_loads,
                          TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
@@ -131,8 +131,8 @@ def optimise_ordering(debris_indices):
 def evaluate_sequence(seq):
     nf = [RH_IDX] + list(seq)
     nt = list(seq) + [RH_IDX]
-    tug_prop_uniform = float(TUG_MPROP[list(seq)].max())   # worst-case tug sets the standard
-    tug_mwets = np.full(5, TUG_DRY + tug_prop_uniform)
+    # REAVER loading rule: 2 tugs at (max req +10%), 3 at (2nd-highest req +10%)
+    tug_mwets = TUG_DRY + tug_loads(TUG_MPROP[list(seq)])
 
     # Backward pass: orbital prop sized so final mass = MS_DRY (transfers only)
     m = MS_DRY
@@ -244,11 +244,12 @@ def print_results(r):
           f"{'Spiral d':>9} {'Start d':>8} {'Arrive d':>9} {'Handover':>9}")
     print(f"  {'':─<3} {'':─<28} {'':─>8} {'':─>8} "
           f"{'':─>9} {'':─>8} {'':─>9} {'':─>9}")
-    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
+    max_req = float(TUG_MPROP[list(seq)].max())
     for i, idx in enumerate(seq):
-        worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == TUG_MPROP[list(seq)].max() else ''
+        load_i = float(r['tug_mwets'][i] - TUG_DRY)
+        worst_flag = '  ← sizing driver' if TUG_MPROP[idx] == max_req else ''
         print(f"  {i+1:<3} {NAMES[idx]:<28} "
-              f"{TUG_DV[idx]:>7.1f}m {tug_prop_uniform:>7.1f}kg "
+              f"{TUG_DV[idx]:>7.1f}m {load_i:>7.1f}kg "
               f"{TUG_TIME[idx]:>8.1f}d {r['tug_starts'][i]:>7.1f}d "
               f"{r['tug_arrive'][i]:>8.1f}d {r['handover'][i]:>8.1f}d{worst_flag}")
 
@@ -374,12 +375,14 @@ def print_mass_timeline(r):
 # =============================================================================
 
 def print_tug_margins(r):
-    """For each tug in the sequence, show propellant required vs uniform budget."""
-    seq              = r['seq']
-    tug_prop_uniform = float(r['tug_mwets'][0] - TUG_DRY)
+    """For each tug in the sequence, show propellant required vs loaded budget."""
+    seq     = r['seq']
+    loads   = r['tug_mwets'] - TUG_DRY            # per-tug loaded prop (position order)
+    max_req = float(TUG_MPROP[list(seq)].max())
 
     print("\n" + "="*76)
-    print(f"  TUG PROPELLANT MARGINS  (uniform budget: {tug_prop_uniform:.1f} kg/tug)")
+    print(f"  TUG PROPELLANT MARGINS  "
+          f"(REAVER loading: 2× max+{TUG_PROP_MARGIN*100:.0f}%, 3× 2nd+{TUG_PROP_MARGIN*100:.0f}%)")
     print("="*76)
     print(f"  {'Tug':<3} {'Debris':<33} {'Req kg':>8} {'Budget kg':>10} "
           f"{'Margin kg':>10} {'Margin %':>9}")
@@ -387,15 +390,16 @@ def print_tug_margins(r):
 
     for i, idx in enumerate(seq):
         req    = float(TUG_MPROP[idx])
-        margin = tug_prop_uniform - req
-        pct    = 100.0 * margin / tug_prop_uniform
-        flag   = '  ← sizing driver' if req == tug_prop_uniform else ''
-        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {tug_prop_uniform:>10.1f} "
+        budget = float(loads[i])
+        margin = budget - req
+        pct    = 100.0 * margin / budget
+        flag   = '  ← sizing driver' if req == max_req else ''
+        print(f"  {i+1:<3} {NAMES[idx]:<33} {req:>8.1f} {budget:>10.1f} "
               f"{margin:>10.1f} {pct:>8.1f}%{flag}")
 
-    total_loaded = 5 * tug_prop_uniform
+    total_loaded = float(loads.sum())
     total_needed = float(TUG_MPROP[list(seq)].sum())
-    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg  (5 × {tug_prop_uniform:.1f} kg)")
+    print(f"\n  Total loaded  : {total_loaded:>8.1f} kg")
     print(f"  Total needed  : {total_needed:>8.1f} kg")
     print(f"  Total margin  : {total_loaded - total_needed:>8.1f} kg")
 
