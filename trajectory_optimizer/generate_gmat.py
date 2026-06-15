@@ -54,7 +54,7 @@ RAAN_final =    64    # deg  final RAAN
 # USER INPUTS -- propulsion
 # ===========================================================
 # Propulsion type: 'impulsive', 'chemical', or 'electric'
-PROP_TYPE  = 'chemical'
+PROP_TYPE  = 'electric'
 
 # --- Spacecraft ---
 DRY_MASS   = 2440.0 + 200    # kg
@@ -65,7 +65,7 @@ CHEM_THRUST = 88    # N    constant thrust level
 CHEM_ISP    = 300.0    # s    specific impulse
 
 # --- Electric thruster (used when PROP_TYPE = 'electric') ---
-ELEC_THRUST = 0.075      # N    constant thrust level
+ELEC_THRUST = 0.07      # N    constant thrust level
 ELEC_ISP    = 1600.0   # s    specific impulse
 ELEC_POWER  = 2      # kW   available power to thruster
 
