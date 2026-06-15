@@ -619,3 +619,4 @@ ts_pos_eci = timeseries(r_eci_m,  t_sim_s);
 ts_vel_eci = timeseries(v_eci_ms, t_sim_s);
 ts_utc = timeseries(utc_vec,  t_sim_s);
 ts_utc_mjd = timeseries(utc_mjd, t_sim_s);
+ts_t_sim_s = timeseries(t_sim_s, t_sim_s);
