@@ -239,7 +239,8 @@ class TestEvaluateSequence:
     SEQ2 = [5, 10, 7, 3, 0]
 
     REQUIRED_KEYS = [
-        'seq', 'ms_prop', 'ms_wet0', 'tug_mwets',
+        'seq', 'ms_prop', 'ms_prop_orbital', 'rcs_allocation', 'rcs_margin',
+        'ms_wet0', 'tug_mwets',
         'dv_legs', 't_legs', 'mass_vec',
         'tug_starts', 'tug_arrive', 'handover',
         'ms_return', 'mission_day', 'tot_dv', 'feasible',
@@ -260,10 +261,25 @@ class TestEvaluateSequence:
         expected = MS_DRY + r['ms_prop'] + float(r['tug_mwets'].sum())
         assert r['ms_wet0'] == pytest.approx(expected, rel=1e-6)
 
-    def test_forward_pass_ends_at_dry_mass(self):
-        # After the return leg (index 5), mass should equal MS_DRY
+    def test_forward_pass_ends_above_dry_mass(self):
+        # mass_vec[-1] is after the return orbital burn but before RH RPO burns.
+        # With the 10% RCS margin, this should be above MS_DRY by roughly rcs_allocation
+        # minus the RPO prop consumed at the 5 debris stops.
         r = nm.evaluate_sequence(self.SEQ)
-        assert float(r['mass_vec'][-1]) == pytest.approx(MS_DRY, rel=1e-3)
+        assert float(r['mass_vec'][-1]) > MS_DRY
+
+    def test_rcs_margin_positive(self):
+        # Full RCS budget must cover all RPO burns; remaining margin > 0
+        r = nm.evaluate_sequence(self.SEQ)
+        assert r['rcs_margin'] > 0.0
+
+    def test_rcs_allocation_is_ten_percent(self):
+        r = nm.evaluate_sequence(self.SEQ)
+        assert r['rcs_allocation'] == pytest.approx(0.10 * r['ms_prop_orbital'], rel=1e-9)
+
+    def test_ms_prop_equals_orbital_plus_rcs(self):
+        r = nm.evaluate_sequence(self.SEQ)
+        assert r['ms_prop'] == pytest.approx(r['ms_prop_orbital'] + r['rcs_allocation'], rel=1e-9)
 
     def test_tug_arrive_not_before_tug_start(self):
         r = nm.evaluate_sequence(self.SEQ)

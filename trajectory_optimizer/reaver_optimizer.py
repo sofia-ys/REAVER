@@ -28,12 +28,13 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 from collections import Counter
-import sys, time, warnings
+import sys, os, time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
 from reaver_core import (build_transfer_table, compute_tug_spirals, phasing_hohmann,
-                         DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG,
+                         DV1, DV2, DV_PH, T_TR, T_PH, DV_LEG, T_LEG, T_LEG_FINITE,
+                         finite_burn_time, finite_burn_info,
                          TUG_DV, TUG_TIME, TUG_MPROP, TUG_MWET, TUG_WET_LOADED)
 
 # =============================================================================
@@ -75,22 +76,23 @@ def evaluate_all_sequences():
 
     # ΔV and time for each of the 6 legs
     dv_legs = DV_LEG[from_nodes, to_nodes]   # (n_seq, 6)
-    t_legs  = T_LEG[from_nodes,  to_nodes]   # (n_seq, 6)
+    t_legs  = T_LEG_FINITE[from_nodes, to_nodes]   # (n_seq, 6)
 
     # Per-sequence tug wet masses: all 5 tugs sized to the worst-case debris in each sequence
     tug_prop_uniform = TUG_MPROP[sequences].max(axis=1, keepdims=True)   # (n_seq, 1)
     tug_mwet_seq = (TUG_DRY + np.repeat(tug_prop_uniform, 5, axis=1)).astype(np.float64)  # (n_seq, 5)
 
-    # Backward pass: required initial mass so final mass = MS_DRY exactly
+    # Backward pass: orbital prop sized so final mass = MS_DRY (transfers only)
     m_req = np.full(n_seq, MS_DRY, dtype=np.float64)
     m_req = m_req * np.exp(dv_legs[:, 5] / MS_VEX)       # un-burn return leg
     for leg in range(4, -1, -1):
         m_req += tug_mwet_seq[:, leg]                      # re-attach tug
         m_req = m_req * np.exp(dv_legs[:, leg] / MS_VEX)  # un-burn this leg
-    ms_prop_seq = m_req - MS_DRY - tug_mwet_seq.sum(axis=1)  # (n_seq,) required prop
-    ms_wet0     = m_req                                        # per-sequence initial mass
+    ms_prop_seq  = m_req - MS_DRY - tug_mwet_seq.sum(axis=1)  # (n_seq,) orbital prop
+    rcs_alloc_seq = MS_RCS_MARGIN * ms_prop_seq                 # 10 % RCS margin
+    ms_wet0      = m_req + rcs_alloc_seq                        # updated initial mass
 
-    # Forward pass with per-tug drops (verifies backward pass; mass_after[:,5] ≈ MS_DRY)
+    # Forward pass: orbital burns + RPO burns interleaved
     cum_dv = np.cumsum(dv_legs, axis=1)       # (n_seq, 6) — ΔV totals for reporting
     mass   = ms_wet0.copy()
     mass_after = np.zeros((n_seq, 6))
@@ -98,7 +100,12 @@ def evaluate_all_sequences():
         mass = mass * np.exp(-dv_legs[:, leg] / MS_VEX)
         mass_after[:, leg] = mass
         if leg < 5:
+            # RPO at debris (inspect+capture + detumble) during T_OPS
+            mass = mass * np.exp(-(DV_RPO_DEBRIS + DV_RPO_DETUMBLE) / MS_VEX)
             mass -= tug_mwet_seq[:, leg]      # tug detaches after ops
+    # 5 × RH proximity docking (tug-meet + dock) after MS return
+    mass = mass * np.exp(-5.0 * DV_RPO_RH / MS_VEX)
+    mass_final = mass   # true final mass after all orbital + RPO burns
 
     # Cumulative time with T_OPS added after each of the 5 captures
     # t_ops only added after legs 0-4 (not the return leg 5)
@@ -113,8 +120,8 @@ def evaluate_all_sequences():
     ms_return = cum_time[:, 5]    # (n_seq,)
 
     # Total mothership ΔV
-    tot_dv  = cum_dv[:, 5]        # (n_seq,)
-    tot_prop = ms_prop_seq   # exact propellant required per sequence
+    tot_dv   = cum_dv[:, 5]        # (n_seq,)
+    tot_prop = ms_prop_seq   # orbital propellant per sequence
 
     print(f"done ({time.time()-t1:.2f}s)")
 
@@ -126,10 +133,21 @@ def evaluate_all_sequences():
     tug_spiral = TUG_TIME[sequences]             # (n_seq, 5)
     tug_arrive = tug_start + tug_spiral          # (n_seq, 5)
 
-    # Handover day = max(ms_return, tug_arrive) + T_OPS (RPO close-approach at RH)
-    handover = np.maximum(ms_return[:, None], tug_arrive) + T_OPS    # (n_seq,5)
+    # Sequential RH handovers: process tugs in arrival order per sequence;
+    # each handover waits for the previous one to finish AND for the tug to arrive.
+    sort_idx = np.argsort(tug_arrive, axis=1)          # (n_seq, 5)
+    handover  = np.zeros((n_seq, 5), dtype=np.float64)
+    t_rh      = ms_return.copy()                        # (n_seq,) current RH free time
+    row_idx   = np.arange(n_seq)
+    for rank in range(5):
+        col    = sort_idx[:, rank]                      # (n_seq,) which tug is rank-th to arrive
+        ta     = tug_arrive[row_idx, col]               # (n_seq,) its arrival day
+        t_start = np.maximum(t_rh, ta)                  # wait for tug if needed
+        ho      = t_start + T_OPS
+        handover[row_idx, col] = ho                     # place back in original tug order
+        t_rh    = ho                                    # next handover can't start before this
 
-    # Mission completion = last handover
+    # Mission completion = last handover (= t_rh after loop)
     mission_day = handover.max(axis=1)           # (n_seq,)
 
     print(f"done ({time.time()-t2:.2f}s)")
@@ -148,7 +166,6 @@ def evaluate_all_sequences():
     f_seq    = sequences[f_idx]           # (nf, 5)
     f_dv     = tot_dv[f_idx]
     f_prop   = tot_prop[f_idx]
-    f_mrem   = ms_prop_seq[f_idx]  # same as f_prop
     f_day    = mission_day[f_idx]
     f_mass   = MASS[f_seq].sum(axis=1)
     f_mret   = ms_return[f_idx]
@@ -156,7 +173,8 @@ def evaluate_all_sequences():
     f_tarr   = tug_arrive[f_idx]
     f_ho     = handover[f_idx]
     f_heavy  = (MASS[f_seq] > SOFT_MASS).any(axis=1)
-    f_mafter = mass_after[f_idx, 5]
+    f_mfinal = mass_final[f_idx]          # true final mass after all orbital + RPO burns
+    f_rcs    = rcs_alloc_seq[f_idx]       # RCS budget per sequence
 
     # Pareto score on all feasible permutations (used to pick best ordering per combo)
     dv_n_all   = (f_dv  - f_dv.min())  / (f_dv.max()  - f_dv.min()  + 1e-9)
@@ -185,12 +203,15 @@ def evaluate_all_sequences():
     sel    = c_idx[order]
 
     tug_prop_sel = TUG_MPROP[f_seq[sel]].max(axis=1) * 5   # uniform sizing: 5× worst tug in sequence
+    ms_prop_sel  = ms_prop_seq[f_idx][sel]
+    rcs_sel      = f_rcs[sel]
     results = {
         'sequences':   f_seq[sel],
         'score':       score[order],
         'total_dv':    f_dv[sel],
-        'prop_used':   f_prop[sel],
-        'prop_margin': f_mafter[sel] - MS_DRY,
+        'prop_used':   f_prop[sel],              # orbital prop (sizing basis)
+        'rcs_alloc':   rcs_sel,                  # RCS budget (10 % of orbital prop)
+        'prop_margin': f_mfinal[sel] - MS_DRY,  # remaining RCS at end of mission
         'mission_day': f_day[sel],
         'ms_return':   f_mret[sel],
         'mass_removed':f_mass[sel],
@@ -200,9 +221,9 @@ def evaluate_all_sequences():
         'has_heavy':   f_heavy[sel],
         'n_feasible':  len(c_idx),
         'n_total':     n_seq,
-        'ms_prop':     ms_prop_seq[f_idx][sel],
+        'ms_prop':     ms_prop_sel,
         'tug_prop':    tug_prop_sel,
-        'total_prop':  ms_prop_seq[f_idx][sel] + tug_prop_sel,
+        'total_prop':  ms_prop_sel + tug_prop_sel,
         'dv_legs':     dv_legs[f_idx][sel],
         't_legs':      t_legs[f_idx][sel],
         'cum_time':    cum_time[f_idx][sel],
@@ -266,14 +287,17 @@ def print_top(res, n=3, start=0, label=None):
                   f"{res['tug_arrive'][rank,i]:>8.1f}d "
                   f"{res['handover'][rank,i]:>8.1f}d{worst_flag}")
 
-        print(f"\n  ┌────────────────────────────────────────────────────────┐")
-        print(f"  │  Mothership ΔV total     : {res['total_dv'][rank]:>8.1f} m/s             │")
-        print(f"  │  Mothership prop used    : {res['prop_used'][rank]:>8.1f} kg              │")
-        print(f"  │  Mothership prop margin  : {res['prop_margin'][rank]:>8.1f} kg              │")
-        print(f"  │  MS returns to RH day    : {res['ms_return'][rank]:>8.1f}                │")
-        print(f"  │  Total debris mass       : {res['mass_removed'][rank]:>8.0f} kg              │")
-        print(f"  │  Mission completion      : {res['mission_day'][rank]:>8.1f} days  ✓       │")
-        print(f"  └────────────────────────────────────────────────────────┘")
+        rcs_pct = 100.0 * res['prop_margin'][rank] / res['rcs_alloc'][rank]
+        print(f"\n  ┌──────────────────────────────────────────────────────────────┐")
+        print(f"  │  Mothership ΔV total       : {res['total_dv'][rank]:>8.1f} m/s               │")
+        print(f"  │  MS orbital propellant     : {res['prop_used'][rank]:>8.1f} kg                │")
+        print(f"  │  RCS margin (+10% budget)  : {res['rcs_alloc'][rank]:>8.1f} kg                │")
+        print(f"  │  MS total initial prop     : {res['prop_used'][rank]+res['rcs_alloc'][rank]:>8.1f} kg                │")
+        print(f"  │  RCS margin remaining      : {res['prop_margin'][rank]:>8.1f} kg  ({rcs_pct:5.1f}% of budget)  │")
+        print(f"  │  MS returns to RH day      : {res['ms_return'][rank]:>8.1f}                  │")
+        print(f"  │  Total debris mass         : {res['mass_removed'][rank]:>8.0f} kg                │")
+        print(f"  │  Mission completion        : {res['mission_day'][rank]:>8.1f} days  ✓         │")
+        print(f"  └──────────────────────────────────────────────────────────────┘")
 
 # =============================================================================
 # TARGET FREQUENCY
@@ -310,22 +334,23 @@ def print_target_frequency(res, top_n=50):
 # =============================================================================
 
 def print_mass_timeline(res, rank, label):
-    seq       = res['sequences'][rank]
-    ms_prop   = res['ms_prop'][rank]
-    tug_mwets = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
-    nf_       = [RH_IDX] + list(seq)
-    nt_       = list(seq) + [RH_IDX]
-    m0        = MS_DRY + ms_prop + tug_mwets.sum()
+    seq        = res['sequences'][rank]
+    ms_prop    = res['ms_prop'][rank]         # orbital prop
+    rcs_alloc  = res['rcs_alloc'][rank]       # RCS budget (10 %)
+    tug_mwets  = np.full(5, TUG_DRY + TUG_MPROP[list(seq)].max())
+    nf_        = [RH_IDX] + list(seq)
+    nt_        = list(seq) + [RH_IDX]
+    m0         = MS_DRY + ms_prop + rcs_alloc + tug_mwets.sum()
 
-    W = 42
-    print("\n" + "="*74)
+    W = 64
+    print("\n" + "="*98)
     print(f"  MOTHERSHIP MASS TIMELINE — {label}")
-    print("="*74)
+    print("="*98)
     print("  " + "  ->  ".join(NAMES[k].split('(')[0].strip()[:14] for k in seq))
-    print(f"\n  Initial: {MS_DRY:.0f} kg dry  +  {ms_prop:.1f} kg prop"
-          f"  +  {tug_mwets.sum():.1f} kg tugs  =  {m0:.1f} kg")
+    print(f"\n  Initial: {MS_DRY:.0f} kg dry  +  {ms_prop:.1f} kg orbital prop"
+          f"  +  {rcs_alloc:.1f} kg RCS (+10%)  +  {tug_mwets.sum():.1f} kg tugs  =  {m0:.1f} kg")
     print(f"\n  {'Day':>7}  {'Event':<{W}}  {'D Mass kg':>10}  {'Mass kg':>9}")
-    print(f"  {'':->7}  {'':−<{W}}  {'':->10}  {'':->9}")
+    print(f"  {'':->7}  {'':─<{W}}  {'':->10}  {'':->9}")
 
     m = m0
     t = 0.0
@@ -343,40 +368,75 @@ def print_mass_timeline(res, rank, label):
 
     for i in range(6):
         fi, ti = nf_[i], nt_[i]
-        dest = NAMES[ti].split('(')[0].strip()[:26] if ti < N_DEB else 'Recycling Hub'
+        dest = NAMES[ti].split('(')[0].strip()[:28] if ti < N_DEB else 'Recycling Hub'
         asc  = SMA_ALL[ti] >= SMA_ALL[fi]
         d1, d2, dph = DV1[fi,ti], DV2[fi,ti], DV_PH[fi,ti]
 
         # Burn 1 — departure
+        m_b1 = m
         dm = -m * (1 - np.exp(-d1 / MS_VEX))
-        b1 = (f"  Burn 1  Hohmann dep      ({d1:6.1f} m/s)" if asc else
-              f"  Burn 1  dep + plane chg  ({d1:6.1f} m/s)")
+        nf1, no1 = finite_burn_info(d1, m_b1)
+        b1 = (f"  Burn 1  Hohmann dep       ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)" if asc else
+              f"  Burn 1  dep + plane chg   ({d1:6.1f} m/s | {nf1} fires, {no1} orbits)")
         prow(t, b1, dm)
+        t += finite_burn_time(d1, m_b1, SMA_ALL[fi])
 
         t += T_TR[fi, ti]
 
         # Burn 2 — at apoapsis / arrival
+        m_b2 = m
         dm = -m * (1 - np.exp(-d2 / MS_VEX))
-        b2 = (f"  Burn 2  circ + plane chg ({d2:6.1f} m/s)" if asc else
-              f"  Burn 2  circularise      ({d2:6.1f} m/s)")
+        nf2, no2 = finite_burn_info(d2, m_b2)
+        b2 = (f"  Burn 2  circ + plane chg  ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)" if asc else
+              f"  Burn 2  circularise        ({d2:6.1f} m/s | {nf2} fires, {no2} orbits)")
         prow(t, b2, dm)
+        t += finite_burn_time(d2, m_b2, SMA_ALL[ti])
 
         # Burn 3 — phasing
-        dm = -m * (1 - np.exp(-dph / MS_VEX))
-        prow(t, f"  Burn 3  phasing          ({dph:6.1f} m/s)", dm)
-
+        m_b3 = m
+        dm_ph = -m * (1 - np.exp(-dph / MS_VEX))
+        nf3, no3 = finite_burn_info(dph, m_b3)
+        prow(t, f"  Burn 3  phasing           ({dph:6.1f} m/s | {nf3} fires, {no3} orbits)", dm_ph)
+        t += finite_burn_time(dph, m_b3, SMA_ALL[ti])
         t += T_PH[fi, ti]
+        prow(t, f"  Phase coast               ({N_PHASE_REV} rev × {T_PH[fi,ti]/N_PHASE_REV:.2f} d = {T_PH[fi,ti]:.1f} d)", None)
 
         if i < 5:
             prow(t, f"  Rendezvous: {dest}", None)
+            # Inspect + capture on arrival day; detumble ~1 day later after ground relay
+            dm_rpo1 = -m * (1 - np.exp(-DV_RPO_DEBRIS   / MS_VEX))
+            prow(t,       f"  RPO inspect + capture     ({DV_RPO_DEBRIS:.2f} m/s, +50% abort)", dm_rpo1)
+            dm_rpo2 = -m * (1 - np.exp(-DV_RPO_DETUMBLE / MS_VEX))
+            prow(t + 1.0, f"  RPO detumble              ({DV_RPO_DETUMBLE:.2f} m/s, ACS body dump)", dm_rpo2)
             t += T_OPS
             prow(t, f"  Tug {i+1} released ({tug_mwets[i]:.1f} kg)", -tug_mwets[i])
         else:
             prow(t, "  Arrive Recycling Hub", None)
+            # Sequential handovers: process tugs in arrival order; each waits for
+            # the previous handover to complete AND for the tug to arrive at RH.
+            arrive_order_rh = np.argsort(res['tug_arrive'][rank])
+            t_rh = t
+            for j_rank in range(5):
+                j = int(arrive_order_rh[j_rank])
+                ta = float(res['tug_arrive'][rank, j])
+                t_next = max(t_rh, ta)
+                if t_next > t_rh + 0.1:
+                    prow(t_next, f"  Wait: tug {j+1} arriving at RH (d {ta:.1f})", None)
+                t_rh = t_next
+                dm_meet = -m * (1 - np.exp(-DV_RPO_TUG_MEET / MS_VEX))
+                prow(t_rh,       f"  RPO tug-meet tug {j+1}        ({DV_RPO_TUG_MEET:.2f} m/s)", dm_meet)
+                dm_dock = -m * (1 - np.exp(-DV_RPO_RH_DOCK  / MS_VEX))
+                prow(t_rh + 0.5, f"  RPO dock to RH tug {j+1}      ({DV_RPO_RH_DOCK:.2f} m/s)", dm_dock)
+                t_rh += T_OPS
+                prow(t_rh, f"  Handover {j+1} complete", None)
 
-    print(f"  {'':->7}  {'':−<{W}}  {'':->10}  {'':->9}")
-    print(f"\n  Prop required : {ms_prop:.1f} kg"
-          f"  |  Final margin : {m - MS_DRY:.1f} kg"
+    print(f"  {'':->7}  {'':─<{W}}  {'':->10}  {'':->9}")
+    rcs_remaining = m - MS_DRY
+    rcs_pct = 100.0 * rcs_remaining / rcs_alloc
+    print(f"\n  Orbital prop    : {ms_prop:.1f} kg"
+          f"  |  RCS budget (+10%) : {rcs_alloc:.1f} kg"
+          f"  |  Total init prop : {ms_prop+rcs_alloc:.1f} kg")
+    print(f"  RCS remaining   : {rcs_remaining:.1f} kg  ({rcs_pct:.1f}% of budget)"
           f"  |  Mission day : {res['mission_day'][rank]:.1f} d")
 
 
@@ -403,13 +463,16 @@ def print_prop_comparison(res, wp, wtp):
     def row(label, vals):
         print(f"  {label:<22}" + "".join(f"  {v:>{W}}" for v in vals))
 
-    row("Rank",         [f"{r+1}/{nf}" for _, r in cases])
-    row("MS prop [kg]", [f"{res['ms_prop'][r]:.1f}"    for _, r in cases])
-    row("Tug prop [kg]",[f"{res['tug_prop'][r]:.1f}"   for _, r in cases])
-    row("Total prop [kg]",[f"{res['total_prop'][r]:.1f}" for _, r in cases])
-    row("Total DV [m/s]", [f"{res['total_dv'][r]:.1f}" for _, r in cases])
-    row("Mission day",  [f"{res['mission_day'][r]:.1f}" for _, r in cases])
-    row("Debris mass [kg]",[f"{res['mass_removed'][r]:.0f}" for _, r in cases])
+    row("Rank",              [f"{r+1}/{nf}" for _, r in cases])
+    row("MS orbital [kg]",  [f"{res['ms_prop'][r]:.1f}"   for _, r in cases])
+    row("RCS budget [kg]",  [f"{res['rcs_alloc'][r]:.1f}" for _, r in cases])
+    row("MS total init [kg]",[f"{res['ms_prop'][r]+res['rcs_alloc'][r]:.1f}" for _, r in cases])
+    row("RCS remaining [kg]",[f"{res['prop_margin'][r]:.1f}" for _, r in cases])
+    row("Tug prop [kg]",    [f"{res['tug_prop'][r]:.1f}"  for _, r in cases])
+    row("Total prop [kg]",  [f"{res['total_prop'][r]:.1f}" for _, r in cases])
+    row("Total DV [m/s]",   [f"{res['total_dv'][r]:.1f}"  for _, r in cases])
+    row("Mission day",      [f"{res['mission_day'][r]:.1f}" for _, r in cases])
+    row("Debris mass [kg]", [f"{res['mass_removed'][r]:.0f}" for _, r in cases])
     print()
     for lbl, r in cases:
         seq_names = " -> ".join(NAMES[k].split('(')[0].strip()[:10] for k in res['sequences'][r])
@@ -490,8 +553,11 @@ def print_tug_margins(res, rank):
 # PLOTTING
 # =============================================================================
 
-def make_plots(res, save_path=r'C:\Projects\DSE\REAVER\trajectory_optimizer\reaver_optimizer_results.png',
-               wp=None):
+def make_plots(res, save_path=None, wp=None):
+    if save_path is None:
+        save_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 'figures', 'reaver_optimizer', 'reaver_optimizer_results.png')
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
     BG='#0d1117'; CB='#161b22'; TC='#c9d1d9'; MU_='#8b949e'; GR='#21262d'
     A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'; A5='#ffa657'
     LC=[A1,A2,A4,A3,A5,'#79c0ff']; TC_=[A1,A2,A4,A3,A5]

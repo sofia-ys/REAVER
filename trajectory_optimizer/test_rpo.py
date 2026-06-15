@@ -11,8 +11,10 @@ import numpy as np
 import pytest
 
 TRAJ_DIR = os.path.dirname(os.path.abspath(__file__))
-if TRAJ_DIR not in sys.path:
-    sys.path.insert(0, TRAJ_DIR)
+RPO_DIR  = os.path.join(TRAJ_DIR, 'rpo')
+for _d in (TRAJ_DIR, RPO_DIR):
+    if _d not in sys.path:
+        sys.path.insert(0, _d)
 
 from config import MU, RH_SMA, MS_DRY, MS_VEX
 import rpo_config as rc
@@ -43,10 +45,28 @@ class TestRpoConfig:
         assert 100.0 <= rc.R_CUTOFF <= 200.0
 
     def test_keepout_ordering(self):
-        assert rc.R_KOS1 > rc.R_KOS2
+        # KOS1 is NOT a global constant — it is derived per-target from the
+        # panel span uplinked by GO at the cut-off distance.
+        # Worst-case: EUTE 12 WEST A (HS-601, 26.2 m span) -> KOS1 = 13.1 m.
+        # KOS2 = arm + tug/2 (fixed geometry, TBD MIRON).
+        # KOS1_wc > KOS2 must hold for the worst-case target.
+        kos1_wc = (rc.DEBRIS_PANEL_SPAN_WC / 2.0) * rc.KOS1_MARGIN
+        assert kos1_wc > rc.R_KOS2, (
+            f"KOS1_wc ({kos1_wc:.1f} m) must exceed KOS2 ({rc.R_KOS2:.1f} m)"
+        )
+        assert rc.R_KOS2 > 0.0
 
     def test_combined_mass_identity(self):
         assert rc.M_COMBINED_RH == pytest.approx(MS_DRY + rc.M_TUG + rc.M_DEBRIS_WC)
+
+    def test_kos1_derives_from_panel_span_with_margin(self):
+        # KOS1 = (panel_span / 2) * 1.20 safety margin.
+        # COMSATBW-1 (BSS-702, confirmed span 17.2 m):
+        #   KOS1 = 17.2/2 * 1.20 = 8.6 * 1.20 = 10.32 m (~10 m).
+        assert rc.DEBRIS_PANEL_SPAN_WC == pytest.approx(17.2)
+        assert rc.KOS1_MARGIN == pytest.approx(1.20)
+        kos1_wc = (rc.DEBRIS_PANEL_SPAN_WC / 2.0) * rc.KOS1_MARGIN
+        assert kos1_wc == pytest.approx(10.32)
 
 
 # =============================================================================
@@ -113,7 +133,7 @@ class TestInertia:
         assert np.all(np.linalg.eigvalsh(J) > 0)
 
     def test_debris_panels_inflate_off_axis(self):
-        J = debris_inertia(2700.0, rc.DEBRIS_BUS_DIMS, rc.DEBRIS_PANEL_SPAN,
+        J = debris_inertia(2700.0, rc.DEBRIS_BUS_DIMS, rc.DEBRIS_PANEL_SPAN_WC,
                            rc.DEBRIS_PANEL_FRAC)
         # panels along y inflate Ixx and Izz above Iyy
         assert J[0, 0] > J[1, 1]
@@ -236,13 +256,18 @@ class TestControl:
 class TestDebrisSim:
     def test_returns_five_plus_phases(self):
         r = simulate_debris_rpo()
-        assert len(r['phases']) == 6      # P1..P5 with P5 split (approach + detumble)
+        # P1 approach, P2 inspection, P3 transition, P4 spin-sync, P5 arm,
+        # P6 final-approach + P6 detumble, P7 retreat = 8
+        assert len(r['phases']) == 8
 
     def test_detumble_separated(self):
         r = simulate_debris_rpo()
         assert r['dv_detumble'] > 0.0
-        # detumble is reported separately, not inside dv_debris
-        assert r['dv_debris'] > r['dv_detumble']
+        assert r['dv_debris'] > 0.0
+        # detumble is extracted separately; the two are independent budget lines.
+        # With a short RCS moment arm (1.05 m) the momentum dump can exceed the
+        # approach-phase cost — no ordering constraint is assumed here.
+        assert r['dv_debris'] != r['dv_detumble']
 
     def test_abort_margin_applied(self):
         no_margin = simulate_debris_rpo(abort_margin=0.0)
