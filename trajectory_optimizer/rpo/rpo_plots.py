@@ -182,8 +182,8 @@ def fig_debris_traj(save=True):
     ax.set_zlabel('H-bar [m]', labelpad=10)
 
     _kos_handles = [
-        Line2D([0], [0], color=C_KOS1, lw=1.5, label=f'KOS1 — interaction ({R_KOS1:.1f} m)'),
-        Line2D([0], [0], color=C_KOS2, lw=1.5, label=f'KOS2 — MEV lock ({R_KOS2:.2f} m)'),
+        Line2D([0], [0], color=C_KOS1, lw=1.5, label=f'KOS1: interaction ({R_KOS1:.1f} m)'),
+        Line2D([0], [0], color=C_KOS2, lw=1.5, label=f'KOS2: MEV lock ({R_KOS2:.2f} m)'),
     ]
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles + _kos_handles, labels=labels + [h.get_label() for h in _kos_handles],
@@ -263,9 +263,9 @@ def fig_rh_meet(save=True):
 
     _kos_handles = [
         Line2D([0], [0], color=C_KOS1, lw=1.5,
-               label=f'KOS1 — panel clearance ({R_KOS1:.1f} m)'),
+               label=f'KOS1: panel clearance ({R_KOS1:.1f} m)'),
         Line2D([0], [0], color=C_KOS2, lw=1.5,
-               label=f'KOS2 — bare-arm capture ({R_KOS2_MEET:.2f} m)'),
+               label=f'KOS2: bare-arm capture ({R_KOS2_MEET:.2f} m)'),
     ]
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles + _kos_handles, labels=labels + [h.get_label() for h in _kos_handles],
@@ -338,9 +338,9 @@ def fig_rh_dock(save=True):
 
     _kos_handles = [
         Line2D([0], [0], color=C_KOS1, lw=1.5,
-               label=f'KOS1 — alignment hold ({R_KOS1_DOCK:.1f} m)'),
+               label=f'KOS1: alignment hold ({R_KOS1_DOCK:.1f} m)'),
         Line2D([0], [0], color=C_KOS2, lw=1.5,
-               label=f'KOS2 — top-port dock ({R_KOS2_DOCK:.2f} m)'),
+               label=f'KOS2: top-port dock ({R_KOS2_DOCK:.2f} m)'),
     ]
     handles, labels = ax.get_legend_handles_labels()
     ax.legend(handles=handles + _kos_handles, labels=labels + [h.get_label() for h in _kos_handles],
@@ -387,13 +387,13 @@ def fig_rh_carry(save=True):
 
     ax.plot(path[:, 0], path[:, 1], path[:, 2],
             color=C_CARRY, lw=2.0, zorder=5,
-            label='Combined-body carry (B1 — 500 m → 30 m)')
+            label='Combined-body carry (B1: 500 m → 30 m)')
 
     _halo = [pe.withStroke(linewidth=3, foreground='white')]
     ax.scatter(*R_CAPTURE, color=C_START, s=90, marker='^', depthshade=False,
-               zorder=6, label='Arm capture — combined body start (500 m)', path_effects=_halo)
+               zorder=6, label='Arm capture: combined body start (500 m)', path_effects=_halo)
     ax.scatter(*R_DOCK_CLOSE, color=C_HAND, s=70, marker='o', depthshade=False,
-               zorder=6, label='30 m standoff — handoff to close approach (Fig 2b)',
+               zorder=6, label='30 m standoff: handoff to close approach (Fig 2b)',
                path_effects=_halo)
     ax.scatter(0, 0, 0, color=C_PORT, s=120, marker='s', depthshade=False,
                zorder=6, label='RH docking port', path_effects=_halo)
@@ -460,7 +460,7 @@ def fig_combined(save=True):
     h, l = ax1.get_legend_handles_labels()
     ax1.legend(handles=h+kos1_h, labels=l+[x.get_label() for x in kos1_h],
                fontsize=6, loc='upper left')
-    ax1.set_title('(a) Debris RPO — V-bar inspect → tumble-axis capture', fontsize=9, pad=6)
+    ax1.set_title('(a) Debris RPO: V-bar inspect → tumble-axis capture', fontsize=9, pad=6)
 
     # ── Panel (b): RH Phase A (cooperative close approach) ──────────────────
     wp2 = [[0.0, -30.0, 0.0], [0.0, -R_KOS1, 0.0], [0.0, -R_KOS2_MEET, 0.0]]
@@ -490,7 +490,7 @@ def fig_combined(save=True):
     h, l = ax2.get_legend_handles_labels()
     ax2.legend(handles=h+kos2_h, labels=l+[x.get_label() for x in kos2_h],
                fontsize=6, loc='upper left')
-    ax2.set_title('(b) RH Phase A — tug meet (cooperative)', fontsize=9, pad=6)
+    ax2.set_title('(b) RH Phase A: tug meet (cooperative)', fontsize=9, pad=6)
 
     # ── Panel (c): RH Phase B (combined body top-port dock) ─────────────────
     C_PATH3 = prop_cycle[1]; C_PORT = prop_cycle[4]
@@ -522,7 +522,7 @@ def fig_combined(save=True):
     h3, l3 = ax3.get_legend_handles_labels()
     ax3.legend(handles=h3+kos3_h, labels=l3+[x.get_label() for x in kos3_h],
                fontsize=6, loc='upper left')
-    ax3.set_title('(c) RH Phase B — top-port dock', fontsize=9, pad=6)
+    ax3.set_title('(c) RH Phase B: top-port dock', fontsize=9, pad=6)
 
     fig.tight_layout(pad=1.5)
     path_out = f'{SAVE_DIR}\\rpo_fig_combined.png'
@@ -632,7 +632,7 @@ def fig_tumble_sweep(save=True):
 
     ax.set_xlabel('Target tumble rate [deg/s]')
     ax.set_ylabel('dV [m/s]')
-    ax.set_title('Debris RPO -- tumble-rate sensitivity', fontsize=11)
+    ax.set_title('Debris RPO: tumble-rate sensitivity', fontsize=11)
     ax.legend(fontsize=9)
     ax.grid(linestyle='--', alpha=0.5)
     ax.set_xlim(0, 6.3)

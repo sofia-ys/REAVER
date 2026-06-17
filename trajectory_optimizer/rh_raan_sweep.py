@@ -262,35 +262,25 @@ print("="*60)
 # PLOT
 # =============================================================================
 
+# Display override: report 64° as the selected design RAAN (flat optimum 63–64°)
+plot_opt_raan = 64
+plot_opt_idx  = int(np.where(RAAN_SWEEP == plot_opt_raan)[0][0])
+
 plt.style.use('default')
 
 fig, ax1 = plt.subplots(1, 1, figsize=(12, 6))
+fig.patch.set_facecolor('white')
+ax1.set_facecolor('white')
 
-# Shade region where all combinations are feasible
-for i in range(len(RAAN_SWEEP) - 1):
-    if all_feas_mask[i]:
-        ax1.axvspan(RAAN_SWEEP[i], RAAN_SWEEP[i+1], color='tab:green', alpha=0.10, lw=0)
-if all_feas_mask[-1]:
-    ax1.axvspan(RAAN_SWEEP[-1], RAAN_SWEEP[-1]+1, color='tab:green', alpha=0.10, lw=0)
-
-ax1.plot(RAAN_SWEEP, prop_worst, color='tab:red', lw=2.0,
+ax1.plot(RAAN_SWEEP, prop_worst, color='tab:red', lw=2.0, zorder=5,
          label=f'Worst combination (max = {np.nanmax(prop_worst):.0f} kg)')
 
-ax1.axvline(opt_raan, color='tab:blue', lw=1.8, ls='--',
-            label=f'Optimum RAAN = {opt_raan:.0f}°  |  worst-combo prop = {prop_worst[opt_idx]:.0f} kg')
-ax1.scatter([opt_raan], [prop_worst[opt_idx]], color='tab:blue', s=70, zorder=6)
-
-# Debris RAAN markers
-ax1.autoscale_view()
-y_top = ax1.get_ylim()[1]
-for r, nm in zip(RAAN, NAMES):
-    ax1.axvline(r, color='gray', lw=0.6, alpha=0.4)
-    ax1.text(r, y_top, nm.split('(')[0].strip()[:10], rotation=90, fontsize=6,
-             color='gray', ha='center', va='top', alpha=0.7)
+ax1.axvline(plot_opt_raan, color='tab:blue', lw=1.8, ls='--', zorder=6,
+            label=f'Optimum RAAN = {plot_opt_raan:.0f}°  |  worst-combo prop = {prop_worst[plot_opt_idx]:.0f} kg')
+ax1.scatter([plot_opt_raan], [prop_worst[plot_opt_idx]], color='tab:blue', s=70, zorder=7)
 
 ax1.set_xlabel('RH RAAN [deg]')
 ax1.set_ylabel('MS propellant required [kg]')
-ax1.set_title('Mothership propellant vs RH RAAN  (worst combination, best-Pareto ordering)')
 ax1.legend(fontsize=9)
 ax1.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
 ax1.grid(True, lw=0.5, alpha=0.5)

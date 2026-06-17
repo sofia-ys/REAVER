@@ -39,8 +39,8 @@ else:
     print(f"{COUNTRY_CODE} column not found")
 
 # Allowed RAAN range in degrees
-RAAN_MIN_DEG = 60.0
-RAAN_MAX_DEG = 90.0
+RAAN_MIN_DEG = 0.0
+RAAN_MAX_DEG = 30.0
 # Name of the dataframe column containing RAAN values
 RAAN_COL = "RA_OF_ASC_NODE"
 
@@ -59,7 +59,6 @@ else:
     print(f"{RAAN_COL} column not found")
 
 
-print(data.to_string())
 #Generate table of desired parameterskjhkj jegni
 table = [
     (
