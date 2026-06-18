@@ -17,7 +17,7 @@ import time, warnings
 warnings.filterwarnings('ignore')
 
 from config import *
-from reaver_core import compute_tug_spirals
+from reaver_core import compute_tug_spirals, tug_loads
 
 # =============================================================================
 # PRE-COMPUTE DEBRIS↔DEBRIS TRANSFER TABLE  (independent of RH RAAN)
@@ -152,7 +152,7 @@ def evaluate_raan(rh_raan_deg):
     dv_legs = DV_LEG[_from, _to]
     t_legs  = T_LEG[_from,  _to]
 
-    tug_mwet = (TUG_DRY + TUG_MPROP[_sequences]).astype(np.float64)
+    tug_mwet = (TUG_DRY + tug_loads(TUG_MPROP[_sequences])).astype(np.float64)   # REAVER loading rule
 
     # Backward pass → propellant per sequence (N_SEQ,)
     m_req = np.full(N_SEQ, MS_DRY)
@@ -262,82 +262,32 @@ print("="*60)
 # PLOT
 # =============================================================================
 
-BG='#0d1117'; CB='#161b22'; TC='#c9d1d9'; MU_='#8b949e'; GR='#21262d'
-A1='#58a6ff'; A2='#3fb950'; A3='#f78166'; A4='#d2a8ff'
+# Display override: report 64° as the selected design RAAN (flat optimum 63–64°)
+plot_opt_raan = 64
+plot_opt_idx  = int(np.where(RAAN_SWEEP == plot_opt_raan)[0][0])
 
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), sharex=True)
-fig.patch.set_facecolor(BG)
-fig.text(0.5, 0.98, 'Recycling Hub RAAN Optimisation — Mothership Propellant Sweep',
-         ha='center', color=TC, fontsize=13, fontweight='bold')
+plt.style.use('default')
 
-for ax in (ax1, ax2):
-    ax.set_facecolor(CB)
-    [s.set_edgecolor(GR) for s in ax.spines.values()]
-    ax.tick_params(colors=MU_, labelsize=8)
-    ax.xaxis.label.set_color(MU_)
-    ax.yaxis.label.set_color(MU_)
-    ax.grid(True, color=GR, lw=0.5, alpha=0.6)
+fig, ax1 = plt.subplots(1, 1, figsize=(12, 6))
+fig.patch.set_facecolor('white')
+ax1.set_facecolor('white')
 
-# ── Panel 1: propellant ───────────────────────────────────────────────────────
-# Shade region where all combinations are feasible
-for i in range(len(RAAN_SWEEP) - 1):
-    if all_feas_mask[i]:
-        ax1.axvspan(RAAN_SWEEP[i], RAAN_SWEEP[i+1], color=A2, alpha=0.07, lw=0)
-if all_feas_mask[-1]:
-    ax1.axvspan(RAAN_SWEEP[-1], RAAN_SWEEP[-1]+1, color=A2, alpha=0.07, lw=0)
+ax1.plot(RAAN_SWEEP, prop_worst, color='tab:red', lw=2.0, zorder=5,
+         label=f'Worst combination (max = {np.nanmax(prop_worst):.0f} kg)')
 
-ax1.plot(RAAN_SWEEP, prop_worst, color=A3, lw=1.8,
-         label=f'Worst combination — best-Pareto ordering  (max={np.nanmax(prop_worst):.0f} kg)')
-ax1.plot(RAAN_SWEEP, prop_mean,  color=A4, lw=1.2, ls='--',
-         label='Mean across feasible combinations')
-ax1.plot(RAAN_SWEEP, prop_best,  color=A2, lw=1.8,
-         label=f'Best combination — best-Pareto ordering  (min={np.nanmin(prop_best):.0f} kg)')
+ax1.axvline(plot_opt_raan, color='tab:blue', lw=1.8, ls='--', zorder=6,
+            label=f'Optimum RAAN = {plot_opt_raan:.0f}°  |  worst-combo prop = {prop_worst[plot_opt_idx]:.0f} kg')
+ax1.scatter([plot_opt_raan], [prop_worst[plot_opt_idx]], color='tab:blue', s=70, zorder=7)
 
-ax1.axvline(opt_raan, color=A1, lw=2.0, ls=':', alpha=0.95,
-            label=f'Optimum RAAN = {opt_raan:.0f}°  |  worst-combo prop = {prop_worst[opt_idx]:.0f} kg  |  all {N_COMBOS} combos feasible')
-ax1.scatter([opt_raan], [prop_worst[opt_idx]], color=A1, s=90, zorder=6, lw=0)
-
-# debris RAAN markers — placed after plot so get_ylim() is valid
-ax1.autoscale_view()
-y_top = ax1.get_ylim()[1]
-for r, nm in zip(RAAN, NAMES):
-    ax1.axvline(r, color=MU_, lw=0.6, alpha=0.35)
-    ax1.text(r, y_top, nm.split('(')[0].strip()[:10], rotation=90, fontsize=5.5,
-             color=MU_, ha='center', va='top', alpha=0.6)
-
+ax1.set_xlabel('RH RAAN [deg]')
 ax1.set_ylabel('MS propellant required [kg]')
-ax1.set_title('Mothership propellant vs RH RAAN  (per combination: best-Pareto ordering)',
-              color=TC, fontsize=9, fontweight='bold', pad=6)
-ax1.legend(fontsize=7, facecolor=CB, labelcolor=TC, edgecolor=GR)
-
-# ── Panel 2: feasible count ───────────────────────────────────────────────────
-# Shade fully-feasible region
-for i in range(len(RAAN_SWEEP) - 1):
-    if all_feas_mask[i]:
-        ax2.axvspan(RAAN_SWEEP[i], RAAN_SWEEP[i+1], color=A2, alpha=0.12, lw=0)
-if all_feas_mask[-1]:
-    ax2.axvspan(RAAN_SWEEP[-1], RAAN_SWEEP[-1]+1, color=A2, alpha=0.12, lw=0)
-
-ax2.fill_between(RAAN_SWEEP, n_feas, alpha=0.25, color=A1)
-ax2.plot(RAAN_SWEEP, n_feas, color=A1, lw=1.8)
-ax2.axhline(N_COMBOS, color=A2, lw=1.2, ls='--', alpha=0.8,
-            label=f'All {N_COMBOS} combinations feasible')
-ax2.axvline(opt_raan, color=A1, lw=2.0, ls=':', alpha=0.95,
-            label=f'Optimum RAAN = {opt_raan:.0f}°')
-
-for r in RAAN:
-    ax2.axvline(r, color=MU_, lw=0.6, alpha=0.35)
-
-ax2.set_xlabel('RH RAAN [deg]')
-ax2.set_ylabel(f'Feasible combinations (of {N_COMBOS})')
-ax2.set_title('Feasible combinations vs RH RAAN', color=TC, fontsize=9,
-              fontweight='bold', pad=6)
-ax2.legend(fontsize=7.5, facecolor=CB, labelcolor=TC, edgecolor=GR)
-ax2.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
+ax1.legend(fontsize=9)
+ax1.set_xlim(min(RAAN_SWEEP), max(RAAN_SWEEP))
+ax1.grid(True, lw=0.5, alpha=0.5)
 
 SAVE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                     'figures', 'rh_raan_sweep', 'rh_raan_sweep.png')
 os.makedirs(os.path.dirname(SAVE), exist_ok=True)
-plt.tight_layout(rect=[0, 0, 1, 0.97])
-plt.savefig(SAVE, dpi=150, bbox_inches='tight', facecolor=BG)
+plt.tight_layout()
+plt.savefig(SAVE, dpi=150, bbox_inches='tight')
 print(f"\n  Plot saved → {SAVE}")
