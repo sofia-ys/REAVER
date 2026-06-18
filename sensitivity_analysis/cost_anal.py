@@ -111,10 +111,9 @@ SLOC_MAX_FRAC = 1.80
 # mode = current baseline / most likely value
 # max = current listed high value
 USE_LAUNCH_PRICE_VARIATION = False
-LAUNCH_PRICE_MIN_10YR_KUSD = 50_000
-LAUNCH_PRICE_MODE_KUSD = 62_000
+LAUNCH_PRICE_MIN_10YR_KUSD = 64_564.5  # $75M USD https://amostech.com/TechnicalPapers/2023/Poster/Shahady.pdf
 LAUNCH_PRICE_MAX_TODAY_KUSD = 89_681.81818181818
-
+LAUNCH_PRICE_MODE_KUSD = (LAUNCH_PRICE_MAX_TODAY_KUSD - LAUNCH_PRICE_MIN_10YR_KUSD) * (2/3) + LAUNCH_PRICE_MIN_10YR_KUSD
 
 # ============================================================
 # CONSTANTS
