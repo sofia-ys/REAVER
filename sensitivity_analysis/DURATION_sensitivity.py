@@ -22,6 +22,7 @@ ms_m_dry_mission_days = ms_m_dry_table[:, 1]
 
 parameters["$m_{dry,ms}$"] = ms_m_dry_mission_days
 
+
 '''VARYING TUG DRY MASS'''
 tug_m_dry_table = pd.read_csv("sensitivity_analysis\\mission_days_for_tug_dry_mass_range.csv")
 tug_m_dry_table = tug_m_dry_table.to_numpy()
@@ -29,8 +30,6 @@ tug_m_dry_mission_days = tug_m_dry_table[:, 1]
 
 parameters["$m_{dry,tug}$"] = tug_m_dry_mission_days
 
-
-'''maybe some margin on tug/ms wet mass'''
 
 '''VARYING ISP'''
 # CHEMICAL PROPELLANT MANUFACTURER RANGE: 243 - 256
@@ -55,9 +54,6 @@ m_debris_table = m_debris_table.to_numpy()
 m_debris_mission_days = m_debris_table[:, -1]
 
 parameters["$m_{debris}$"] = m_debris_mission_days
-
-'''VARYING POWER CONSUMPTION'''
-power = 300
 
 
 '''PLOTTING'''

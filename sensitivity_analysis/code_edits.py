@@ -1,7 +1,7 @@
 '''here is just all the copy/paste pieces to edit the other files to get what we want'''
 
 '''VARYING DELTA V'''
-# trajectory_optimizer\reaver_optimizer.py 
+# # trajectory_optimizer\reaver_optimizer.py 
 # if __name__ == '__main__':
 
 #     t0=time.time()
@@ -28,7 +28,7 @@
 #     print("\n  Done.")
 
 '''VARYING MS DRY MASS'''
-# trajectory_optimizer\nominal_mission.py
+# # trajectory_optimizer\nominal_mission.py
 # LINE 154
 # # t_legs  = np.array([T_LEG_FINITE[nf[i], nt[i]] for i in range(6)])
 #     '''MASS VARYING VERSION'''
